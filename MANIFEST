@@ -1,0 +1,16 @@
+Build.PL
+lib/Mail/Log/Parse.pm
+lib/Mail/Log/Parse/Postfix.pm
+LICENSE
+Makefile.PL
+MANIFEST
+META.yml
+README
+t/001_load.t
+t/002_basic.t
+t/003_compressed.t
+t/data/log
+t/data/log.bz2
+t/data/log2
+t/data/log_bad.bz2
+Todo
