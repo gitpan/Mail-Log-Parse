@@ -239,6 +239,9 @@ SEE ALSO
     Namely seeking through a file, both forwards and back.)
 
 HISTORY
+    Oct 13, 2008 - Fixed tests so they do a better job of checking if they
+    need to skip.
+
     Oct 6, 2008 - Inital version.
 
 COPYRIGHT and LICENSE

@@ -8,11 +8,11 @@ use Time::Local;
 use Mail::Log::Parse::Postfix;
 use Mail::Log::Exceptions;
 
-if ( eval{ require IO::Uncompress::AnyUncompress } ) {
+if ( eval{ require IO::Uncompress::AnyUncompress } and eval{ require IO::Uncompress::Gunzip } ) {
 	plan( tests => 107 );
 }
 else {
-	plan( skip_all => 'Need IO::Uncompress::AnyUncompress installed.');
+	plan( skip_all => 'Need IO::Uncompress::AnyUncompress and IO::Uncompress::Gunzip installed.');
 }
 
 # We'll need this value over and over.
@@ -25,13 +25,13 @@ my @keys = sort qw(to from relay pid msgid program host status id timestamp text
 ### Test the non-working. ###
 {
 my $object;
-throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/log.bz2'})} 'Mail::Log::Exceptions::LogFile';
+throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/log.gz'})} 'Mail::Log::Exceptions::LogFile';
 
 	# This is going to test
 	# a file that exists, but we can't read...
-chmod (0000, 't/data/log.bz2');
-throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/data/log.bz2'})} 'Mail::Log::Exceptions::LogFile';
-chmod (0644, 't/data/log.bz2');	# Make sure we set it back at the end.
+chmod (0000, 't/data/log.gz');
+throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/data/log.gz'})} 'Mail::Log::Exceptions::LogFile';
+chmod (0644, 't/data/log.gz');	# Make sure we set it back at the end.
 
 # Now we test an unreadable bzip file.
 throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/data/log_bad.bz2'})} 'Mail::Log::Exceptions::LogFile';
@@ -39,7 +39,7 @@ throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/data/log_b
 
 my $object = Mail::Log::Parse::Postfix->new();
 
-$object->set_logfile('t/data/log.bz2');
+$object->set_logfile('t/data/log.gz');
 
 is($object->get_line_number(), 0, 'Starting line number.');
 
