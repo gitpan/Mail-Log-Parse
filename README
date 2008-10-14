@@ -239,6 +239,8 @@ SEE ALSO
     Namely seeking through a file, both forwards and back.)
 
 HISTORY
+    Oct 14, 2008 - Found that I need File::Temp of at least version 0.17.
+
     Oct 13, 2008 - Fixed tests so they do a better job of checking if they
     need to skip.
 

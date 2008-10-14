@@ -14,7 +14,7 @@ Module::Build->new
 							'Time::Local'	=> 0,
 							'IO::File'		=> 0,
 							'File::Basename'=> 0,
-							'File::Temp'	=> 0,
+							'File::Temp'	=> '0.17',
 							'Mail::Log::Exceptions' => 0,
 							},
       build_requires  =>	{

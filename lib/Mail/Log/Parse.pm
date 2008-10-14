@@ -55,7 +55,7 @@ use warnings;
 use Scalar::Util qw(refaddr blessed);
 use File::Basename;
 use IO::File;
-use File::Temp;
+use File::Temp 0.17;
 use Mail::Log::Exceptions;
 use base qw(Exporter);
 
@@ -63,7 +63,7 @@ use base qw(Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS @ISA);
-    $VERSION     = '1.00.01';
+    $VERSION     = '1.0.2';
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
     @EXPORT_OK   = qw();
@@ -521,6 +521,8 @@ is a result of running into what that module B<doesn't> support.  Namely
 seeking through a file, both forwards and back.)
 
 =head1 HISTORY
+
+Oct 14, 2008 - Found that I need File::Temp of at least version 0.17.
 
 Oct 13, 2008 - Fixed tests so they do a better job of checking if they 
 need to skip.
