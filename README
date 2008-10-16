@@ -91,6 +91,11 @@ USAGE
     expected to be overridden by the subclass. (And is the only method
     needed to be overridden.)
 
+    Other 'standard' fields that are expected in a certain format (but are
+    not required to always be present) are 'from', 'to', 'size', 'subject'.
+    'to' should point to an array of addresses. (As listed in the log. That
+    includes angle brackets, usually.)
+
     Example:
 
       while $hash_ref ( $object->next() ) {

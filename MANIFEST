@@ -12,5 +12,5 @@ t/003_compressed.t
 t/data/log
 t/data/log.gz
 t/data/log2
-t/data/log_bad.bz2
+t/data/log_bad.gz
 Todo

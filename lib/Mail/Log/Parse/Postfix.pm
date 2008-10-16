@@ -32,7 +32,7 @@ use base qw(Mail::Log::Parse Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '1.0';
+    $VERSION     = '1.1.0';
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
     @EXPORT_OK   = qw();
@@ -151,7 +151,7 @@ sub next {
 	# (These may or may not return any info...)
 
 	# To address
-	($line_info{to}) = $line_info{text} =~ m/to=([^,]*),/;
+	@{$line_info{to}} = $line_info{text} =~ m/to=([^,]*),/g;
 
 	# From address
 	($line_info{from}) = $line_info{text} =~ m/from=([^,]*),/;

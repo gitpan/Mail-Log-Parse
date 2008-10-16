@@ -63,7 +63,7 @@ use base qw(Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS @ISA);
-    $VERSION     = '1.0.2';
+    $VERSION     = '1.1.0';
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
     @EXPORT_OK   = qw();
@@ -235,6 +235,11 @@ minus those already required keys.)
 This version is just a placeholder: It will return a 
 'Mail::Log::Exceptions::Unimplemented' exception if called.  It is expected to
 be overridden by the subclass.  (And is the only method needed to be overridden.)
+
+Other 'standard' fields that are expected in a certain format (but are not
+required to always be present) are 'from', 'to', 'size', 'subject'.  'to'
+should point to an array of addresses.  (As listed in the log.  That includes 
+angle brackets, usually.)
 
 Example:
 

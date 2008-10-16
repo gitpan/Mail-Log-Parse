@@ -9,7 +9,7 @@ use Mail::Log::Parse::Postfix;
 use Mail::Log::Exceptions;
 
 if ( eval{ require IO::Uncompress::AnyUncompress } and eval{ require IO::Uncompress::Gunzip } ) {
-	plan( tests => 107 );
+	plan( tests => 106 );
 }
 else {
 	plan( skip_all => 'Need IO::Uncompress::AnyUncompress and IO::Uncompress::Gunzip installed.');
@@ -33,8 +33,8 @@ chmod (0000, 't/data/log.gz');
 throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/data/log.gz'})} 'Mail::Log::Exceptions::LogFile';
 chmod (0644, 't/data/log.gz');	# Make sure we set it back at the end.
 
-# Now we test an unreadable bzip file.
-throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/data/log_bad.bz2'})} 'Mail::Log::Exceptions::LogFile';
+# Now we test an unreadable gzip file.
+#throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/data/log_bad.gz'})} 'Mail::Log::Exceptions::LogFile';
 }
 
 my $object = Mail::Log::Parse::Postfix->new();
@@ -56,7 +56,7 @@ my $result = $object->next();
 my @result_keys = sort keys %$result;
 is_deeply( \@result_keys, \@keys, 'Hash key list.');
 is($object->get_line_number(), 1, 'Read one line.');
-is($result->{to}, '<00000000@acme.gov>', 'Read first to.');
+is_deeply($result->{to}, ['<00000000@acme.gov>'], 'Read first to.');
 is($result->{relay}, '127.0.0.1[127.0.0.1]:10025', 'Read first relay.');
 is($result->{program}, 'postfix/smtp', 'Read first program.');
 is($result->{pid}, '5727', 'Read first process ID.');
@@ -84,7 +84,7 @@ is($result->{size}, undef, 'Read first size.');
 	my @result_keys = sort keys %$result;
 	is_deeply( \@result_keys, \@keys, 'Read after skip: Hash key list.');
 	is($object->get_line_number(), 4, 'Read after skip: Line number.');
-	is($result->{to}, undef, 'Read after skip: To');
+	is_deeply($result->{to}, [], 'Read after skip: To');
 	is($result->{relay}, undef, 'Read after skip: Relay');
 	is($result->{program}, 'postfix/smtpd', 'Read after skip: Program');
 	is($result->{pid}, '5819', 'Read after skip: pid');
@@ -109,7 +109,7 @@ is($result->{size}, undef, 'Read first size.');
 	my @result_keys = sort keys %$result;
 	is_deeply( \@result_keys, \@keys, 'Read connect: Hash key list.');
 	is($object->get_line_number(), 5, 'Read connect: Line number.');
-	is($result->{to}, undef, 'Read connect: To');
+	is_deeply($result->{to}, [], 'Read connect: To');
 	is($result->{relay}, undef, 'Read connect: Relay');
 	is($result->{program}, 'postfix/smtpd', 'Read connect: Program');
 	is($result->{pid}, '5748', 'Read connect: pid');
@@ -138,7 +138,7 @@ is($result->{size}, undef, 'Read first size.');
 	my @result_keys = sort keys %$result;
 	is_deeply( \@result_keys, \@keys, 'Read after backskip: Hash key list.');
 	is($object->get_line_number(), 1, 'Read after backskip: Line number.');
-	is($result->{to}, '<00000000@acme.gov>', 'Read after backskip: To');
+	is_deeply($result->{to}, ['<00000000@acme.gov>'], 'Read after backskip: To');
 	is($result->{from}, undef, 'Read after backskip: From');
 	is($result->{relay}, '127.0.0.1[127.0.0.1]:10025', 'Read after backskip: Relay');
 	is($result->{program}, 'postfix/smtp', 'Read after backskip: Program');
@@ -162,7 +162,7 @@ is($result->{size}, undef, 'Read first size.');
 	my @result_keys = sort keys %$result;
 	is_deeply( \@result_keys, \@keys, 'Read after skip: Hash key list.');
 	is($object->get_line_number(), 3, 'Read after skip: Line number.');
-	is($result->{to}, undef, 'Read after skip: To');
+	is_deeply($result->{to}, [], 'Read after skip: To');
 	is($result->{from}, '<00000001@baz.acme.gov>', 'Read after skip: From');
 	is($result->{relay}, undef, 'Read after skip: Relay');
 	is($result->{program}, 'postfix/qmgr', 'Read after skip: Program');
@@ -184,7 +184,7 @@ is($result->{size}, undef, 'Read first size.');
 	my @result_keys = sort keys %$result;
 	is_deeply( \@result_keys, \@keys, 'Read previous: Hash key list.');
 	is($object->get_line_number(), 2, 'Read previous: Line number.');
-	is($result->{to}, undef, 'Read previous: To');
+	is_deeply($result->{to}, [], 'Read previous: To');
 	is($result->{from}, undef, 'Read previous: From');
 	is($result->{relay}, undef, 'Read previous: Relay');
 	is($result->{program}, 'postfix/smtpd', 'Read previous: Program');
