@@ -58,9 +58,10 @@ USAGE
 
     Files can be compressed or uncompressed: If they are compressed, then
     `IO::Uncompress::AnyUncompress' must be installed with the relevant
-    decompression libraries. Currently only 'tgz', 'zip', 'gz', and 'bz2'
-    archives are supported, but there is no technical reason not to support
-    more. (It just keeps a couple of lines of code shorter.)
+    decompression libraries. (As well as version 0.17 or better of
+    File::Temp.) Currently only 'tgz', 'zip', 'gz', and 'bz2' archives are
+    supported, but there is no technical reason not to support more. (It
+    just keeps a couple of lines of code shorter.)
 
     Note that to support seeking in the file the log will be uncompressed to
     disk before it is read: If there is insufficent space to do so, we may
@@ -166,6 +167,10 @@ USAGE
 
       $line_num = $object->get_line_number();
 
+  go_to_line_number
+
+    Goes to a specific logical line number. (Preferably one that exits...)
+
 UTLITY METHODS
     The following methods are not for general consumption: They are
     specifically provided for use in implementing subclasses. Using them
@@ -227,8 +232,7 @@ BUGS
     return better values. (They basically always return true at the moment.)
 
 REQUIRES
-    Scalar::Util, File::Basename, IO::File, File::Temp,
-    Mail::Log::Exceptions
+    Scalar::Util, File::Basename, IO::File, Mail::Log::Exceptions
 
 RECOMMENDS
     IO::Uncompress::AnyUncompress
@@ -244,6 +248,9 @@ SEE ALSO
     Namely seeking through a file, both forwards and back.)
 
 HISTORY
+    Oct 24, 2008 - File::Temp now optional; only required for uncompressed
+    files. Added go_to_line_number for slightly better functionality.
+
     Oct 14, 2008 - Found that I need File::Temp of at least version 0.17.
 
     Oct 13, 2008 - Fixed tests so they do a better job of checking if they

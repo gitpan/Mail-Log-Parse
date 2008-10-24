@@ -32,7 +32,7 @@ use base qw(Mail::Log::Parse Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '1.1.0';
+    $VERSION     = '1.002';
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
     @EXPORT_OK   = qw();
@@ -85,10 +85,12 @@ Hash keys are:
 
 	delay_before_queue, delay_connect_setup, delay_in_queue, 
 	delay_message_transmission, from, host, id, msgid, pid, program, 
-	relay, size, status, text, timestamp, to, total_delay
+	relay, size, status, text, timestamp, to, total_delay, connect,
+	disconnect
 
 All keys are garunteed to be present.  'program', 'pid', 'host', 'timestamp',
-'id' and 'text' are garunteed to have a value.
+'id' and 'text' are garunteed to have a value.  'connect' and 'disconnect' are
+boolean: true if the line is the relevant type of line, false otherwise.
 
 The 'text' key will have all of the log text B<after> the standard Postfix
 header.  (All of which is in the other keys that are required to have a value.)
@@ -173,6 +175,12 @@ sub next {
 	# Message ID
 	($line_info{msgid}) = $line_info{text} =~ m/message-id=(.*)$/;
 
+	# Connect (Boolean)
+	$line_info{connect} = $line_info{text} =~ m/\bconnect from/;
+
+	# Disconnect (Boolean)
+	$line_info{disconnect} = $line_info{text} =~ m/\bdisconnect from/;
+
 	# Return the data.
 	return \%line_info;
 }
@@ -196,6 +204,8 @@ DStaal@usa.net
 L<Mail::Log::Parse>, for the main documentation on this module set.
 
 =head1 HISTORY
+
+Oct 24, 2008 - Added 'connect' and 'discoonect' members to the return hash.
 
 Oct 6, 2008 - Inital version.
 

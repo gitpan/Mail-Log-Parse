@@ -8,8 +8,9 @@ use Time::Local;
 use Mail::Log::Parse::Postfix;
 use Mail::Log::Exceptions;
 
-if ( eval{ require IO::Uncompress::AnyUncompress } and eval{ require IO::Uncompress::Gunzip } ) {
-	plan( tests => 106 );
+if ( eval{ require IO::Uncompress::AnyUncompress } and eval{ require IO::Uncompress::Gunzip }
+			and eval{ require File::Temp; File::Temp->VERSION(0.17); } ) {
+	plan( tests => 111 );
 }
 else {
 	plan( skip_all => 'Need IO::Uncompress::AnyUncompress and IO::Uncompress::Gunzip installed.');
@@ -20,7 +21,8 @@ else {
 
 # The keys list.
 my @keys = sort qw(to from relay pid msgid program host status id timestamp text size delay_before_queue 
-					delay_in_queue delay_connect_setup delay_message_transmission total_delay);
+					delay_in_queue delay_connect_setup delay_message_transmission total_delay connect
+					disconnect);
 
 ### Test the non-working. ###
 {
@@ -72,6 +74,7 @@ is($result->{delay_connect_setup}, '0', 'Read first delay connect setup.');
 is($result->{delay_message_transmission}, '0.09', 'Read first delay message transmission.');
 is($result->{total_delay}, '0.63', 'Read first total delay.');
 is($result->{size}, undef, 'Read first size.');
+ok(!($result->{connect}), 'Read first Connect');
 }
 
 # Go forward, testing iterator.
@@ -100,6 +103,7 @@ is($result->{size}, undef, 'Read first size.');
 	is($result->{delay_message_transmission}, undef, 'Read after skip delay message transmission.');
 	is($result->{total_delay}, undef, 'Read after skip total delay.');
 	is($result->{size}, undef, 'Read after skip: size');
+	ok(!($result->{connect}), 'Read after skip: Connect');
 }
 
 # Read another line.  (This happens to be a connect, which are odd.)
@@ -120,6 +124,7 @@ is($result->{size}, undef, 'Read first size.');
 	is($result->{timestamp}, $timestamp, 'Read connect: timestamp');
 	is($result->{text}, 'connect from localhost.localdomain[127.0.0.1]', 'Read connect: text');
 	is($result->{size}, undef, 'Read connect: size');
+	ok($result->{connect}, 'Read connect: Connect');
 }
 
 # Let's go back again...
@@ -215,4 +220,13 @@ is($result->{size}, undef, 'Read first size.');
 {
 	$object->go_to_beginning();
 	is($object->get_line_number(), 0, 'Skip to begining.');
+}
+
+# Go to a specific line number.
+{
+	$object->go_to_line_number(10);
+	is($object->get_line_number(), 10, 'Go to line 10 (Forward.)');
+
+	$object->go_to_line_number(4);
+	is($object->get_line_number(), 4, 'Go to line 4 (Backwards.)');
 }

@@ -55,7 +55,6 @@ use warnings;
 use Scalar::Util qw(refaddr blessed);
 use File::Basename;
 use IO::File;
-use File::Temp 0.17;
 use Mail::Log::Exceptions;
 use base qw(Exporter);
 
@@ -63,7 +62,7 @@ use base qw(Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS @ISA);
-    $VERSION     = '1.1.0';
+    $VERSION     = '1.002';
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
     @EXPORT_OK   = qw();
@@ -155,9 +154,10 @@ success.
 
 Files can be compressed or uncompressed: If they are compressed, then
 C<IO::Uncompress::AnyUncompress> must be installed with the relevant
-decompression libraries.  Currently only 'tgz', 'zip', 'gz', and 'bz2' archives
-are supported, but there is no technical reason not to support more.  (It just
-keeps a couple of lines of code shorter.)
+decompression libraries. (As well as version 0.17 or better of File::Temp.)
+Currently only 'tgz', 'zip', 'gz', and 'bz2' archives are supported, but
+there is no technical reason not to support more.  (It just keeps a couple
+of lines of code shorter.)
 
 Note that to support seeking in the file the log will be uncompressed to disk
 before it is read: If there is insufficent space to do so, we may have trouble.
@@ -184,8 +184,13 @@ sub set_logfile {
 
 				# Since we only need uncompress symantics right here, we'll
 				# only load them if we need them.  Neat, huh?
-				require IO::Uncompress::AnyUncompress;
+				eval { require IO::Uncompress::AnyUncompress } or Mail::Log::Exceptions->throw("Need IO::Uncompress::AnyUncompress for compressed files.\n");
 				IO::Uncompress::AnyUncompress->import( qw(anyuncompress) );
+
+				# Same with File::Temp;
+				eval { require File::Temp } or Mail::Log::Exceptions->throw("Need File::Temp version 0.17 or better for compressed files.\n");
+				File::Temp->VERSION( 0.17 )	# Minimum version check.
+					or Mail::Log::Exceptions->throw("Need File::Temp version 0.17 or better for compressed files.\n");
 
 				# If it is compressed, uncompress to a temp file and use that.
 				my $temp = new File::Temp();
@@ -417,6 +422,25 @@ sub get_line_number {
 	return $log_info{refaddr $self}{'current_line'};
 }
 
+=head2 go_to_line_number 
+
+Goes to a specific logical line number.  (Preferably one that exits...)
+
+=cut
+
+sub go_to_line_number {
+	my ($self, $line_number) = @_;
+
+	my $current_line_number = $self->get_line_number();
+
+	if ( $current_line_number > $line_number ) {
+		return $self->go_backward($current_line_number - $line_number);
+	}
+	else {
+		return $self->go_forward($line_number - $current_line_number);
+	}
+}
+
 #
 # These are semi-private methods: They are for the use of subclasses only.
 #
@@ -507,7 +531,7 @@ better values.  (They basically always return true at the moment.)
 
 =head1 REQUIRES
 
-Scalar::Util, File::Basename, IO::File, File::Temp, Mail::Log::Exceptions
+Scalar::Util, File::Basename, IO::File, Mail::Log::Exceptions
 
 =head1 RECOMMENDS
 
@@ -526,6 +550,9 @@ is a result of running into what that module B<doesn't> support.  Namely
 seeking through a file, both forwards and back.)
 
 =head1 HISTORY
+
+Oct 24, 2008 - File::Temp now optional; only required for uncompressed files.
+               Added go_to_line_number for slightly better functionality.
 
 Oct 14, 2008 - Found that I need File::Temp of at least version 0.17.
 

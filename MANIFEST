@@ -9,8 +9,8 @@ README
 t/001_load.t
 t/002_basic.t
 t/003_compressed.t
+t/004_optional_features.t
 t/data/log
 t/data/log.gz
-t/data/log2
 t/data/log_bad.gz
 Todo

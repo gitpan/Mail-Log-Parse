@@ -14,7 +14,6 @@ Module::Build->new
 							'Time::Local'	=> 0,
 							'IO::File'		=> 0,
 							'File::Basename'=> 0,
-							'File::Temp'	=> '0.17',
 							'Mail::Log::Exceptions' => 0,
 							},
       build_requires  =>	{
@@ -23,7 +22,8 @@ Module::Build->new
 							'Test::Exception' => 0,
 							},
       recommends      =>	{
-	  						'IO::Uncompress::AnyUncompress' => 0,
+							'IO::Uncompress::AnyUncompress' => 0,
+							'File::Temp'	=> '0.17',
 							},
 
     )->create_build_script;

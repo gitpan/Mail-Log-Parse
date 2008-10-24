@@ -2,7 +2,7 @@
 
 use warnings;
 use strict;
-use Test::More tests=> 112;
+use Test::More tests=> 126;
 use Test::Exception; 
 use Time::Local;
 use Mail::Log::Parse;
@@ -21,7 +21,8 @@ use Mail::Log::Exceptions;
 
 # The keys list.
 my @keys = sort qw(to from relay pid msgid program host status id timestamp text size delay_before_queue 
-					delay_in_queue delay_connect_setup delay_message_transmission total_delay);
+					delay_in_queue delay_connect_setup delay_message_transmission total_delay connect
+					disconnect);
 
 ### Test the non-working. ###
 {
@@ -78,6 +79,8 @@ is($result->{delay_connect_setup}, '0', 'Read first delay connect setup.');
 is($result->{delay_message_transmission}, '0.09', 'Read first delay message transmission.');
 is($result->{total_delay}, '0.63', 'Read first total delay.');
 is($result->{size}, undef, 'Read first size.');
+ok(!($result->{connect}), 'Read first Connect');
+ok(!($result->{disconnect}), 'Read first disconnect');
 }
 
 # Go forward, testing iterator.
@@ -106,6 +109,8 @@ is($result->{size}, undef, 'Read first size.');
 	is($result->{delay_message_transmission}, undef, 'Read after skip delay message transmission.');
 	is($result->{total_delay}, undef, 'Read after skip total delay.');
 	is($result->{size}, undef, 'Read after skip: size');
+	ok(!($result->{connect}), 'Read after skip: Connect');
+	ok(!($result->{disconnect}), 'Read after skip: disconnect');
 }
 
 # Read another line.  (This happens to be a connect, which are odd.)
@@ -126,6 +131,8 @@ is($result->{size}, undef, 'Read first size.');
 	is($result->{timestamp}, $timestamp, 'Read connect: timestamp');
 	is($result->{text}, 'connect from localhost.localdomain[127.0.0.1]', 'Read connect: text');
 	is($result->{size}, undef, 'Read connect: size');
+	ok($result->{connect}, 'Read connect: Connect');
+	ok(!($result->{disconnect}), 'Read connect: disconnect');
 }
 
 # Let's go back again...
@@ -156,6 +163,8 @@ is($result->{size}, undef, 'Read first size.');
 	is($result->{timestamp}, $timestamp, 'Read after backskip: timestamp');
 	is($result->{text}, 'to=<00000000@acme.gov>, relay=127.0.0.1[127.0.0.1]:10025, delay=0.63, delays=0.54/0/0/0.09, dsn=2.0.0, status=sent (250 OK, sent 48A8F422_13987_12168_1 6B1B62259)');
 	is($result->{size}, undef, 'Read after backskip: size');
+	ok(!($result->{connect}), 'Read after backskip: Connect');
+	ok(!($result->{disconnect}), 'Read after backskip: disconnect');
 }
 
 # Seek forward.
@@ -180,10 +189,11 @@ is($result->{size}, undef, 'Read first size.');
 	is($result->{timestamp}, $timestamp, 'Read after skip: timestamp');
 	is($result->{text}, 'from=<00000001@baz.acme.gov>, size=84778, nrcpt=7 (queue active)', 'Read after skip: text');
 	is($result->{size}, '84778', 'Read after skip: size');
-
+	ok(!($result->{connect}), 'Read after skip: Connect');
+	ok(!($result->{disconnect}), 'Read after skip: disconnect');
 }
 
-# Previous line.
+# Previous line.  (This happens to be a disconnect line.)
 {
 	my $result = $object->previous();
 
@@ -202,6 +212,8 @@ is($result->{size}, undef, 'Read first size.');
 	is($result->{timestamp}, $timestamp, 'Read previous: timestamp');
 	is($result->{text}, 'disconnect from localhost.localdomain[127.0.0.1]');
 	is($result->{size}, undef, 'Read previous: size');
+	ok(!($result->{connect}), 'Read previous: Connect');
+	ok(($result->{disconnect}), 'Read pevious: disconnect');
 }
 
 # Seek forward.
@@ -221,4 +233,13 @@ is($result->{size}, undef, 'Read first size.');
 {
 	$object->go_to_beginning();
 	is($object->get_line_number(), 0, 'Skip to begining.');
+}
+
+# Go to a specific line number.
+{
+	$object->go_to_line_number(10);
+	is($object->get_line_number(), 10, 'Go to line 10 (Forward.)');
+
+	$object->go_to_line_number(4);
+	is($object->get_line_number(), 4, 'Go to line 4 (Backwards.)');
 }

@@ -1,6 +1,6 @@
 ---
 name: Mail-Log-Parse
-version: 1.1.0
+version: 1.002
 author:
   - 'Daniel Staal - <DStaal@usa.net>'
 abstract: Parse and return info in maillogs.
@@ -9,7 +9,6 @@ resources:
   license: http://dev.perl.org/licenses/
 requires:
   File::Basename: 0
-  File::Temp: 0.17
   IO::File: 0
   Mail::Log::Exceptions: 0
   Scalar::Util: 0
@@ -20,14 +19,15 @@ build_requires:
   Test::Exception: 0
   Test::Warn: 0
 recommends:
+  File::Temp: 0.17
   IO::Uncompress::AnyUncompress: 0
 provides:
   Mail::Log::Parse:
     file: lib/Mail/Log/Parse.pm
-    version: 1.1.0
+    version: 1.002
   Mail::Log::Parse::Postfix:
     file: lib/Mail/Log/Parse/Postfix.pm
-    version: 1.1.0
+    version: 1.002
 generated_by: Module::Build version 0.2808
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html
