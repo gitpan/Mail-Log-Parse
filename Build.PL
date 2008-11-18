@@ -7,6 +7,7 @@ Module::Build->new
       dist_author     => 'Daniel Staal - <DStaal@usa.net>',
       dist_abstract   => 'Parse and return info in maillogs.',
       create_readme   => 1,
+      dynamic_config  => 0,
       create_makefile_pl => 'passthrough',
       requires        => 	{
 							'perl'		=> '5.6.1',
@@ -21,9 +22,14 @@ Module::Build->new
 							'Test::Warn'		=> 0,
 							'Test::Exception' => 0,
 							},
-      recommends      =>	{
-							'IO::Uncompress::AnyUncompress' => 0,
-							'File::Temp'	=> '0.17',
-							},
-
+      meta_merge  => { optional_features => {
+                          compressed_files => {
+                              description => 'Allows work with compressed files.',
+                              requires    => {
+                                  'IO::Uncompress::AnyUncompress' => 0,
+                                  'File::Temp'	=> '0.17',
+                                              },
+                                               },
+                                            },
+                     },
     )->create_build_script;

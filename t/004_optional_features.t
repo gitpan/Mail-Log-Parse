@@ -82,11 +82,11 @@ SKIP: {
 
 	skip 'File::Temp version 0.17 required', 2 if $@;
 
-	eval q{ no Test::Without::Module qw( File::Temp ) };
-	lives_and { $object->set_logfile('t/data/log.gz'); } 'Reloaded File::Temp';
-
 	# Without IO::Uncompress::AnyUncompress
 	eval q{ Test::Without::Module->import( qw( IO::Uncompress::AnyUncompress ) ); };
 	throws_ok { $object->set_logfile('t/data/log.gz'); } 'Mail::Log::Exceptions';
+
+	eval q{ no Test::Without::Module qw( File::Temp ) };
+	lives_and { $object->set_logfile('t/data/log.gz'); } 'Reloaded File::Temp';
 }
 }

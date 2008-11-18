@@ -62,7 +62,7 @@ use base qw(Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS @ISA);
-    $VERSION     = '1.002';
+    $VERSION     = '1.0200';
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
     @EXPORT_OK   = qw();
@@ -74,6 +74,10 @@ BEGIN {
 #
 
 my %log_info;
+my %parse_buffer;
+my %parse_buffer_start_line;
+my %parse_buffer_size;
+my %debug;
 
 #
 # DESTROY class variables.
@@ -84,6 +88,10 @@ sub DESTROY {
 	my ($self) = @_;
 	
 	delete $log_info{refaddr $self};
+	delete $parse_buffer{refaddr $self};
+	delete $parse_buffer_start_line{refaddr $self};
+	delete $parse_buffer_size{refaddr $self};
+	delete $debug{refaddr $self};
 	
 	return;
 }
@@ -143,6 +151,17 @@ sub new
 		$self->set_logfile($parameters_ref->{'log_file'});  # Better to keep validation together.
 	}
 
+	$debug{refaddr $self} = defined($parameters_ref->{debug});
+
+#$debug{refaddr $self} = 1;
+
+	# Init the buffer.
+	$log_info{refaddr $self}{current_line} = 0;
+	$parse_buffer_start_line{refaddr $self} = 0;
+	$parse_buffer{refaddr $self} = undef;
+	$parse_buffer_size{refaddr $self} = defined($parameters_ref->{buffer_length}) ? $parameters_ref->{buffer_length} : 128;
+
+
 	return $self;
 }
 
@@ -172,7 +191,7 @@ Example:
 sub set_logfile {
 	my ($self, $new_name) = @_;
 	
-	# Check to make sure the file exitsts,
+	# Check to make sure the file exists,
 	# and then that we can read it, before accpeting the filename.
 	if ( -e $new_name ) {
 		if ( -r $new_name ) {
@@ -263,7 +282,59 @@ or...
 sub next {
 	my ($self) = @_;
 	
-	Mail::Log::Exceptions::Unimplemented->throw("Method 'next' needs to be implemented by the subclass.\n");
+	my $current_line = $self->get_line_number();
+	
+	if ( defined($parse_buffer{refaddr $self})
+			and ( ($current_line+1) <= ($parse_buffer_start_line{refaddr $self} + $#{$parse_buffer{refaddr $self}}) )
+			and ( ($current_line+1) >= $parse_buffer_start_line{refaddr $self})
+		) {
+		
+		# Increment where we are.
+		$log_info{refaddr $self}->{current_line} = $log_info{refaddr $self}->{current_line} + 1;
+
+		print STDERR 'Returning line number '. $self->get_line_number() ." from buffer.\n" if $debug{refaddr $self};
+
+		# Return the data we were asked for.
+		return $parse_buffer{refaddr $self}->[($current_line - $parse_buffer_start_line{refaddr $self}+1)];
+	}
+	else {
+		# Move the actual read postition to where we are.
+		# (But only if we've acutally ever read anything.)
+		if ( defined($log_info{refaddr $self}->{line_positions}->[$current_line]) ) {
+			$log_info{refaddr $self}{filehandle}->setpos($log_info{refaddr $self}->{line_positions}->[$current_line])
+				or Mail::Log::Exceptions::LogFile->throw("Error seeking to position: $!\n");
+		}
+		
+		print STDERR 'Reading buffer for line '. $current_line .".\n" if $debug{refaddr $self};
+		
+		# Check if we've reached the end of the file.
+		# (And that we haven't gone back...)
+		if ( defined($parse_buffer{refaddr $self}->[0]) 
+			and $#{$parse_buffer{refaddr $self}} < $parse_buffer_size{refaddr $self}
+			and $current_line >= $parse_buffer_start_line{refaddr $self}
+			) {
+			return $parse_buffer{refaddr $self}->[-1];
+		}
+		
+		# Clear the buffer.
+		@{$parse_buffer{refaddr $self}} = ();
+		
+		# Read in the buffer.
+		READ_LOOP: for my $i (0...$parse_buffer_size{refaddr $self}) {
+			$parse_buffer{refaddr $self}->[$i] = $self->_parse_next_line();
+			last READ_LOOP unless defined $parse_buffer{refaddr $self}->[$i];
+		}
+		
+#use Data::Dumper;
+#print STDERR Data::Dumper->Dump($parse_buffer{refaddr $self});
+		
+		# Move the indexes back to the line we are reading.
+		$parse_buffer_start_line{refaddr $self} = $self->get_line_number() - $#{$parse_buffer{refaddr $self}};
+		$self->go_to_line_number($parse_buffer_start_line{refaddr $self});
+		
+		# Return the data.
+		return $parse_buffer{refaddr $self}->[0];
+	}
 }
 
 =head2 previous
@@ -311,15 +382,24 @@ sub go_forward {
 	$lines ||= 1;
 	
 	# If we've read the line before, go straight to it.
-	if ( ${$log_info{refaddr $self}{'line_positions'}}[($log_info{refaddr $self}->{'current_line'}+$lines)] ) {
-		$log_info{refaddr $self}{'filehandle'}->setpos(${$log_info{refaddr $self}{'line_positions'}}[($log_info{refaddr $self}->{'current_line'}+$lines)])
-			or Mail::Log::Exceptions::LogFile->throw("Error seeking to position: $!\n");
-		$log_info{refaddr $self}->{'current_line'} = $log_info{refaddr $self}->{'current_line'} + $lines;
+	if ( ${$log_info{refaddr $self}{line_positions}}[($log_info{refaddr $self}->{current_line}+$lines)] ) {
+		$log_info{refaddr $self}->{current_line} = $log_info{refaddr $self}->{current_line} + $lines;
 	}
 	else {
-		# Otherwise, read until we get to it.
-		foreach ( 1..$lines ) {
-			$self->next();
+		# Work out where we are.
+		my $start_pos = $self->get_line_number();
+		my $end_known_pos = $#{$log_info{refaddr $self}{line_positions}};	# zero-indexed.
+		my $lines_remaining = $lines - ($end_known_pos - $start_pos);
+
+		# Go to the last line we have.
+		$log_info{refaddr $self}->{current_line} = $#{$log_info{refaddr $self}{line_positions}};
+		
+		# Then read until we get to the line we want.
+		if ( $self->next() ) {
+			return $self->go_forward($lines_remaining - 1);
+		}
+		else {
+			return 0;
 		}
 	}
 	return 1;
@@ -349,15 +429,12 @@ sub go_backward {
 
 	# If the line exits, go straight to it.
 	if ( ($log_info{refaddr $self}->{'current_line'} - $lines ) > 0 ) {
-		$log_info{refaddr $self}{'filehandle'}->setpos(${$log_info{refaddr $self}{'line_positions'}}[($log_info{refaddr $self}->{'current_line'}-$lines)])
-			or Mail::Log::Exceptions::LogFile->throw("Error seeking to position: $!\n");
 		$log_info{refaddr $self}{'current_line'} -= $lines;
 	}
 	else {
 		#If they've asked us to go beyond the beginning of the file, just go to the beginning.
-		$log_info{refaddr $self}{'filehandle'}->setpos(${$log_info{refaddr $self}{'line_positions'}}[0])
-			or Mail::Log::Exceptions::LogFile->throw("Error seeking to position: $!\n");
 		$log_info{refaddr $self}->{'current_line'} = 0;
+		return 0;
 	}
 	return 1;
 }
@@ -373,8 +450,6 @@ Returns true on success.
 sub go_to_beginning {
 	my ($self) = @_;
 
-	$log_info{refaddr $self}{'filehandle'}->setpos(${$log_info{refaddr $self}{'line_positions'}}[0])
-		or Mail::Log::Exceptions::LogFile->throw("Error seeking to beginning: $!\n");
 	$log_info{refaddr $self}->{'current_line'} = 0;
 
 	return 1;
@@ -393,12 +468,13 @@ Returns true on success.
 sub go_to_end {
 	my ($self) = @_;
 	
-		$log_info{refaddr $self}{'filehandle'}->setpos(${$log_info{refaddr $self}{'line_positions'}}[-1])
-			or Mail::Log::Exceptions::LogFile->throw("Error seeking to end: $!\n");
-		$log_info{refaddr $self}->{'current_line'} = $#{$log_info{refaddr $self}{'line_positions'}};
+	# Go to the end of what we have.
+	$log_info{refaddr $self}->{current_line} = $#{$log_info{refaddr $self}{line_positions}};
 
+	# Read more.
 	while ( $self->next() ) {
-		1;
+		# Since we're buffering, we read more than just one line.  Skip it all.
+		$log_info{refaddr $self}->{current_line} = $#{$log_info{refaddr $self}{line_positions}};
 	}
 
 	return 1;
@@ -417,9 +493,9 @@ Example:
 
 =cut
 
-sub get_line_number {
+sub get_line_number () {
 	my ($self) = @_;
-	return $log_info{refaddr $self}{'current_line'};
+	return $log_info{refaddr $self}{current_line};
 }
 
 =head2 go_to_line_number 
@@ -433,12 +509,23 @@ sub go_to_line_number {
 
 	my $current_line_number = $self->get_line_number();
 
-	if ( $current_line_number > $line_number ) {
+	no warnings qw(uninitialized);
+	if ( $current_line_number >= $line_number ) {
 		return $self->go_backward($current_line_number - $line_number);
 	}
 	else {
 		return $self->go_forward($line_number - $current_line_number);
 	}
+}
+
+#
+# To be overrridden by subclasses.
+#
+
+sub _parse_next_line {
+	my ($self) = @_;
+	
+	Mail::Log::Exceptions::Unimplemented->throw("Method '_parse_next_line' needs to be implemented by the subclass.\n");
 }
 
 #
@@ -465,8 +552,8 @@ C<_get_data_line>) is parsable in the currently understood format.
 sub _set_current_position_as_next_line { 
 	my ($self) = @_;
 
-	$log_info{refaddr $self}{'current_line'} += 1;
-	${$log_info{refaddr $self}{'line_positions'}}[$log_info{refaddr $self}->{'current_line'}] = $log_info{refaddr $self}{'filehandle'}->getpos()
+	$log_info{refaddr $self}{current_line} += 1;
+	${$log_info{refaddr $self}{line_positions}}[$log_info{refaddr $self}->{current_line}] = $log_info{refaddr $self}{filehandle}->getpos()
 		or Mail::Log::Exceptions::LogFile->throw("Unable to get current file position: $!\n");
 	return;
 }
@@ -480,8 +567,16 @@ from the logfile, seperated by the current input seperator.
 
 sub _get_data_line {
 	my ($self) = @_;
-	return $log_info{refaddr $self}{'filehandle'}->getline();
+	return $log_info{refaddr $self}{filehandle}->getline();
 }
+
+sub _clear_buffer {
+	my ($self) = @_;
+	@{$parse_buffer{refaddr $self}} = undef;
+	$parse_buffer_start_line{refaddr $self} = -1;
+	return;
+}
+
 
 =head2 Suggested usage:
 
@@ -529,6 +624,12 @@ where you are in the file and what you've read so far.
 Those two methods should do slightly better on 'success' testing, to return
 better values.  (They basically always return true at the moment.)
 
+C<get_line_number> will return one less than the true line number if you are
+at the end of the file, and the buffer was completely filled.  (So that the
+end of the file is the last space of the buffer.)  Changing the buffer size or
+just going back and re-reading so that the buffer is restarted at a different
+location will allow you to retrieve the correct file length.
+
 =head1 REQUIRES
 
 Scalar::Util, File::Basename, IO::File, Mail::Log::Exceptions
@@ -550,6 +651,8 @@ is a result of running into what that module B<doesn't> support.  Namely
 seeking through a file, both forwards and back.)
 
 =head1 HISTORY
+
+Nov 18, 2008 - Now buffers reading, and prefers data from the buffer.
 
 Oct 24, 2008 - File::Temp now optional; only required for uncompressed files.
                Added go_to_line_number for slightly better functionality.

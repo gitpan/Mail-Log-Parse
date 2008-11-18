@@ -231,6 +231,13 @@ BUGS
     Those two methods should do slightly better on 'success' testing, to
     return better values. (They basically always return true at the moment.)
 
+    `get_line_number' will return one less than the true line number if you
+    are at the end of the file, and the buffer was completely filled. (So
+    that the end of the file is the last space of the buffer.) Changing the
+    buffer size or just going back and re-reading so that the buffer is
+    restarted at a different location will allow you to retrieve the correct
+    file length.
+
 REQUIRES
     Scalar::Util, File::Basename, IO::File, Mail::Log::Exceptions
 
@@ -248,6 +255,8 @@ SEE ALSO
     Namely seeking through a file, both forwards and back.)
 
 HISTORY
+    Nov 18, 2008 - Now buffers reading, and prefers data from the buffer.
+
     Oct 24, 2008 - File::Temp now optional; only required for uncompressed
     files. Added go_to_line_number for slightly better functionality.
 

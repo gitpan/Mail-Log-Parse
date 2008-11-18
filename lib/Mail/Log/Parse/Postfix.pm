@@ -32,7 +32,7 @@ use base qw(Mail::Log::Parse Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '1.002';
+    $VERSION     = '1.0300';
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
     @EXPORT_OK   = qw();
@@ -74,7 +74,35 @@ sub DESTROY {
 	
 	delete $log_info{refaddr $self};
 	
+	$self->SUPER::DESTROY();
+	
 	return;
+}
+
+sub new {
+	my ($class, $parameters_ref) = @_;
+
+	my $self = $class->SUPER::new($parameters_ref);
+
+	if (defined($parameters_ref->{year})) {
+		$self->set_year($parameters_ref->{year});
+	}
+
+	return $self
+}
+
+=head2 set_year
+
+Sets the year, for the log timestamps.  If not set, the log is assumed to
+be for the current year.
+
+=cut
+
+sub set_year {
+	my ($self, $year) = @_;
+	$log_info{refaddr $self}->{year} = $year;
+	$self->_clear_buffer();
+	return
 }
 
 =head2 next
@@ -97,7 +125,7 @@ header.  (All of which is in the other keys that are required to have a value.)
 
 =cut
 
-sub next {
+sub _parse_next_line {
 	my ($self) = @_;
 
 	# The hash we will return.
@@ -126,7 +154,12 @@ sub next {
 	# First few fields are the date.  Convert back to Unix format...
 	{	# We don't need all these temp variables hanging around.
 		my ($log_hour, $log_minutes, $log_seconds) = split /:/, $line_data[2];
-		$line_info{timestamp} = timelocal($log_seconds, $log_minutes, $log_hour, $line_data[1], $MONTH_NUMBER{$line_data[0]}, $CURR_DATE[5]);
+		if (!defined($log_info{refaddr $self}->{year}) ) {
+			$line_info{timestamp} = timelocal($log_seconds, $log_minutes, $log_hour, $line_data[1], $MONTH_NUMBER{$line_data[0]}, $CURR_DATE[5]);
+		}
+		else {
+			$line_info{timestamp} = timelocal($log_seconds, $log_minutes, $log_hour, $line_data[1], $MONTH_NUMBER{$line_data[0]}, $log_info{refaddr $self}->{year});
+		}
 	}
 
 	# Machine Hostname
@@ -169,7 +202,7 @@ sub next {
 
 	# Delays
 	($line_info{delay_before_queue}, $line_info{delay_in_queue}, $line_info{delay_connect_setup}, $line_info{delay_message_transmission} )
-		= $line_info{text} =~ m{delays=([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+),};
+		= $line_info{text} =~ m{delays=([^/]+)/([^/]+)/([^/]+)/([^,]+),};
 	($line_info{total_delay}) = $line_info{text} =~ m/delay=([\d.]+),/;
 
 	# Message ID
@@ -205,7 +238,13 @@ L<Mail::Log::Parse>, for the main documentation on this module set.
 
 =head1 HISTORY
 
-Oct 24, 2008 - Added 'connect' and 'discoonect' members to the return hash.
+Nov 11, 2008 - Switched to using the bufferable C<_parse_next_line> instead of
+the unbuffered C<next>.
+
+Nov 6, 2008 - Added C<set_year> and alternate year handling, in case we aren't
+dealing with this year's logs.  (From the todo list.)
+
+Oct 24, 2008 - Added 'connect' and 'disconnect' members to the return hash.
 
 Oct 6, 2008 - Inital version.
 
