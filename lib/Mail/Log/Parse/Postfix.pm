@@ -32,7 +32,7 @@ use base qw(Mail::Log::Parse Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '1.0300';
+    $VERSION     = '1.0400';
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
     @EXPORT_OK   = qw();
@@ -94,7 +94,7 @@ sub new {
 =head2 set_year
 
 Sets the year, for the log timestamps.  If not set, the log is assumed to
-be for the current year.
+be for the current year.  (Can also be passed in C<new>, with the key 'year'.)
 
 =cut
 
@@ -113,7 +113,7 @@ Hash keys are:
 
 	delay_before_queue, delay_connect_setup, delay_in_queue, 
 	delay_message_transmission, from, host, id, msgid, pid, program, 
-	relay, size, status, text, timestamp, to, total_delay, connect,
+	relay, size, status, text, timestamp, to, delay, connect,
 	disconnect
 
 All keys are garunteed to be present.  'program', 'pid', 'host', 'timestamp',
@@ -186,27 +186,27 @@ sub _parse_next_line {
 	# (These may or may not return any info...)
 
 	# To address
-	@{$line_info{to}} = $line_info{text} =~ m/to=([^,]*),/g;
+	@{$line_info{to}} = $line_info{text} =~ m/to=([^,]+),/g;
 
 	# From address
-	($line_info{from}) = $line_info{text} =~ m/from=([^,]*),/;
+	($line_info{from}) = $line_info{text} =~ m/from=([^,]+),/;
 
 	# Relay
-	($line_info{relay}) = $line_info{text} =~ m/relay=([^,]*),/;
+	($line_info{relay}) = $line_info{text} =~ m/relay=([^,]+),/;
 
 	# Status
-	($line_info{status}) = $line_info{text} =~ m/status=(.*)$/;
+	($line_info{status}) = $line_info{text} =~ m/status=(.+)$/;
 
 	# Size
-	($line_info{size}) = $line_info{text} =~ m/size=([^,]*),/;
+	($line_info{size}) = $line_info{text} =~ m/size=([^,]+),/;
 
 	# Delays
 	($line_info{delay_before_queue}, $line_info{delay_in_queue}, $line_info{delay_connect_setup}, $line_info{delay_message_transmission} )
 		= $line_info{text} =~ m{delays=([^/]+)/([^/]+)/([^/]+)/([^,]+),};
-	($line_info{total_delay}) = $line_info{text} =~ m/delay=([\d.]+),/;
+	($line_info{delay}) = $line_info{text} =~ m/delay=([\d.]+),/;
 
 	# Message ID
-	($line_info{msgid}) = $line_info{text} =~ m/message-id=(.*)$/;
+	($line_info{msgid}) = $line_info{text} =~ m/message-id=(.+)$/;
 
 	# Connect (Boolean)
 	$line_info{connect} = $line_info{text} =~ m/\bconnect from/;
@@ -237,6 +237,9 @@ DStaal@usa.net
 L<Mail::Log::Parse>, for the main documentation on this module set.
 
 =head1 HISTORY
+
+Nov 28, 2008 - Switched 'total_delay' to slightly more universal 'delay'.
+Sped up some regrexes.
 
 Nov 11, 2008 - Switched to using the bufferable C<_parse_next_line> instead of
 the unbuffered C<next>.

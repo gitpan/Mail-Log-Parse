@@ -50,6 +50,12 @@ USAGE
     Note that it is an error to call any method other than `set_logfile' if
     you have not passed it in the constructor.
 
+    Optional keys in the hash are 'buffer_length' and 'debug'. The buffer
+    length is the number of lines to read at a time (and store in the
+    internal buffer). Default is 128. Setting debug to a true value will
+    result is some debugging information being printed to STDERR. (I reserve
+    the right to remove or change the debug info at any time.)
+
   set_logfile
 
     Sets the logfile that this object will attempt to parse. It will throw
@@ -75,7 +81,7 @@ USAGE
   next
 
     Returns a reference to a hash of the next parsable line of the log, or
-    undef on end of file/failure.
+    'undef' on end of file/failure.
 
     There are a couple of required keys that any parser must implement:
 
@@ -88,14 +94,15 @@ USAGE
     any 'standard' headers. (Usually, minus those already required keys.)
 
     This version is just a placeholder: It will return a
-    'Mail::Log::Exceptions::Unimplemented' exception if called. It is
-    expected to be overridden by the subclass. (And is the only method
-    needed to be overridden.)
+    'Mail::Log::Exceptions::Unimplemented' exception if called. Subclasses
+    are expected to override the `_parse_next_line' method to get an
+    operable parser. (And that is the only method needed to be overridden
+    for a working subclass.)
 
     Other 'standard' fields that are expected in a certain format (but are
-    not required to always be present) are 'from', 'to', 'size', 'subject'.
-    'to' should point to an array of addresses. (As listed in the log. That
-    includes angle brackets, usually.)
+    not required to always be present) are 'from', 'to', 'size', 'subject',
+    delay. 'to' should point to an array of addresses. (As listed in the
+    log. That includes angle brackets, usually.)
 
     Example:
 
@@ -194,10 +201,10 @@ UTLITY METHODS
 
   Suggested usage:
 
-    Suggestion on how to use the above two methods to implement a 'next'
-    routine in a subclass:
+    Suggestion on how to use the above two methods to implement a
+    '_parse_next_line' routine in a subclass:
 
-      sub next {
+      sub _parse_next_line {
             my ($self) = @_;
 
             # The hash we will return.
@@ -242,7 +249,7 @@ REQUIRES
     Scalar::Util, File::Basename, IO::File, Mail::Log::Exceptions
 
 RECOMMENDS
-    IO::Uncompress::AnyUncompress
+    IO::Uncompress::AnyUncompress, File::Temp
 
 AUTHOR
     Daniel T. Staal
@@ -255,6 +262,8 @@ SEE ALSO
     Namely seeking through a file, both forwards and back.)
 
 HISTORY
+    Nov 28, 2008 - Documentation fixes.
+
     Nov 18, 2008 - Now buffers reading, and prefers data from the buffer.
 
     Oct 24, 2008 - File::Temp now optional; only required for uncompressed

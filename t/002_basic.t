@@ -21,7 +21,7 @@ use Mail::Log::Exceptions;
 
 # The keys list.
 my @keys = sort qw(to from relay pid msgid program host status id timestamp text size delay_before_queue 
-					delay_in_queue delay_connect_setup delay_message_transmission total_delay connect
+					delay_in_queue delay_connect_setup delay_message_transmission delay connect
 					disconnect);
 
 ### Test the non-working. ###
@@ -78,7 +78,7 @@ is($result->{delay_before_queue}, '0.54', 'Read first delay before queue.');
 is($result->{delay_in_queue}, '0', 'Read first delay in queue.');
 is($result->{delay_connect_setup}, '0', 'Read first delay connect setup.');
 is($result->{delay_message_transmission}, '0.09', 'Read first delay message transmission.');
-is($result->{total_delay}, '0.63', 'Read first total delay.');
+is($result->{delay}, '0.63', 'Read first total delay.');
 is($result->{size}, undef, 'Read first size.');
 ok(!($result->{connect}), 'Read first Connect');
 ok(!($result->{disconnect}), 'Read first disconnect');
@@ -108,7 +108,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{delay_in_queue}, undef, 'Read after skip delay in queue.');
 	is($result->{delay_connect_setup}, undef, 'Read after skip delay connect setup.');
 	is($result->{delay_message_transmission}, undef, 'Read after skip delay message transmission.');
-	is($result->{total_delay}, undef, 'Read after skip total delay.');
+	is($result->{delay}, undef, 'Read after skip total delay.');
 	is($result->{size}, undef, 'Read after skip: size');
 	ok(!($result->{connect}), 'Read after skip: Connect');
 	ok(!($result->{disconnect}), 'Read after skip: disconnect');

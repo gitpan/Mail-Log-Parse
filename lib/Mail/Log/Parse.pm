@@ -62,7 +62,7 @@ use base qw(Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS @ISA);
-    $VERSION     = '1.0200';
+    $VERSION     = '1.0201';
     #Give a hoot don't pollute, do not export more than needed by default
     @EXPORT      = qw();
     @EXPORT_OK   = qw();
@@ -86,6 +86,8 @@ my %debug;
 
 sub DESTROY {
 	my ($self) = @_;
+	
+	$log_info{refaddr $self}{filehandle}->close() if defined($log_info{refaddr $self}{filehandle});
 	
 	delete $log_info{refaddr $self};
 	delete $parse_buffer{refaddr $self};
@@ -137,6 +139,12 @@ Example:
 
 Note that it is an error to call any method other than C<set_logfile> if you
 have not passed it in the constructor.
+
+Optional keys in the hash are 'buffer_length' and 'debug'.  The buffer length
+is the number of lines to read at a time (and store in the internal buffer).
+Default is 128.  Setting debug to a true value will result is some debugging
+information being printed to STDERR.  (I reserve the right to remove or change
+the debug info at any time.)
 
 =cut
 
@@ -243,7 +251,7 @@ sub set_logfile {
 
 =head2 next
 
-Returns a reference to a hash of the next parsable line of the log, or undef on 
+Returns a reference to a hash of the next parsable line of the log, or 'undef' on 
 end of file/failure.
 
 There are a couple of required keys that any parser must implement:
@@ -257,11 +265,12 @@ program, and C<text> is the text following any 'standard' headers.  (Usually,
 minus those already required keys.)
 
 This version is just a placeholder: It will return a 
-'Mail::Log::Exceptions::Unimplemented' exception if called.  It is expected to
-be overridden by the subclass.  (And is the only method needed to be overridden.)
+'Mail::Log::Exceptions::Unimplemented' exception if called.  Subclasses are
+expected to override the C<_parse_next_line> method to get an operable parser.
+(And that is the only method needed to be overridden for a working subclass.)
 
 Other 'standard' fields that are expected in a certain format (but are not
-required to always be present) are 'from', 'to', 'size', 'subject'.  'to'
+required to always be present) are 'from', 'to', 'size', 'subject', delay.  'to'
 should point to an array of addresses.  (As listed in the log.  That includes 
 angle brackets, usually.)
 
@@ -292,7 +301,7 @@ sub next {
 		# Increment where we are.
 		$log_info{refaddr $self}->{current_line} = $log_info{refaddr $self}->{current_line} + 1;
 
-		print STDERR 'Returning line number '. $self->get_line_number() ." from buffer.\n" if $debug{refaddr $self};
+#		print STDERR 'Returning line number '. $self->get_line_number() ." from buffer.\n" if $debug{refaddr $self};
 
 		# Return the data we were asked for.
 		return $parse_buffer{refaddr $self}->[($current_line - $parse_buffer_start_line{refaddr $self}+1)];
@@ -305,7 +314,7 @@ sub next {
 				or Mail::Log::Exceptions::LogFile->throw("Error seeking to position: $!\n");
 		}
 		
-		print STDERR 'Reading buffer for line '. $current_line .".\n" if $debug{refaddr $self};
+#		print STDERR 'Reading buffer for line '. $current_line .".\n" if $debug{refaddr $self};
 		
 		# Check if we've reached the end of the file.
 		# (And that we haven't gone back...)
@@ -580,10 +589,10 @@ sub _clear_buffer {
 
 =head2 Suggested usage:
 
-Suggestion on how to use the above two methods to implement a 'next' routine in
+Suggestion on how to use the above two methods to implement a '_parse_next_line' routine in
 a subclass:
 
-  sub next {
+  sub _parse_next_line {
 	my ($self) = @_;
 
 	# The hash we will return.
@@ -636,7 +645,7 @@ Scalar::Util, File::Basename, IO::File, Mail::Log::Exceptions
 
 =head1 RECOMMENDS
 
-IO::Uncompress::AnyUncompress
+IO::Uncompress::AnyUncompress, File::Temp
 
 =head1 AUTHOR
 
@@ -651,6 +660,8 @@ is a result of running into what that module B<doesn't> support.  Namely
 seeking through a file, both forwards and back.)
 
 =head1 HISTORY
+
+Nov 28, 2008 - Documentation fixes.
 
 Nov 18, 2008 - Now buffers reading, and prefers data from the buffer.
 
