@@ -29,14 +29,13 @@ use Mail::Log::Parse;
 use Mail::Log::Exceptions;
 use base qw(Mail::Log::Parse Exporter);
 
+use Memoize;
+memoize('timelocal');
+
 BEGIN {
     use Exporter ();
-    use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS);
-    $VERSION     = '1.0400';
-    #Give a hoot don't pollute, do not export more than needed by default
-    @EXPORT      = qw();
-    @EXPORT_OK   = qw();
-    %EXPORT_TAGS = ();
+    use vars qw($VERSION);
+    $VERSION     = '1.0410';
 }
 
 # A constant, to convert month names to month numbers.
@@ -224,7 +223,8 @@ None known at the moment.
 
 =head1 REQUIRES
 
-Scalar::Util, Time::Local, Mail::Log::Parse, Mail::Log::Exceptions
+L<Scalar::Util>, L<Time::Local>, L<Mail::Log::Parse>, L<Mail::Log::Exceptions>,
+L<Memoize>
 
 =head1 AUTHOR
 
@@ -237,6 +237,10 @@ DStaal@usa.net
 L<Mail::Log::Parse>, for the main documentation on this module set.
 
 =head1 HISTORY
+
+Dec 09, 2008 (1.4.10) - Profiled code, did some speedups.  Added dependency on
+Memoize: For large logs this is a massive speedup.  For extremely sparse logs
+it may not be, but sparce logs are likely to be small.
 
 Nov 28, 2008 - Switched 'total_delay' to slightly more universal 'delay'.
 Sped up some regrexes.

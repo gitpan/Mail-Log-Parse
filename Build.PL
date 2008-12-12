@@ -16,6 +16,7 @@ Module::Build->new
 							'IO::File'		=> 0,
 							'File::Basename'=> 0,
 							'Mail::Log::Exceptions' => 0,
+							'Memoize'		=> 0,
 							},
       build_requires  =>	{
 							'Module::Build'	=> 0, 

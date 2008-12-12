@@ -262,6 +262,9 @@ SEE ALSO
     Namely seeking through a file, both forwards and back.)
 
 HISTORY
+    Dec 09, 2008 (1.2.10) - Profiled and sped up code. (Cut processing time
+    in half for some cases.)
+
     Nov 28, 2008 - Documentation fixes.
 
     Nov 18, 2008 - Now buffers reading, and prefers data from the buffer.

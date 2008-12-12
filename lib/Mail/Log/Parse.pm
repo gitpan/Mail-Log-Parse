@@ -58,15 +58,10 @@ use IO::File;
 use Mail::Log::Exceptions;
 use base qw(Exporter);
 
-
 BEGIN {
     use Exporter ();
-    use vars qw($VERSION @EXPORT @EXPORT_OK %EXPORT_TAGS @ISA);
-    $VERSION     = '1.0201';
-    #Give a hoot don't pollute, do not export more than needed by default
-    @EXPORT      = qw();
-    @EXPORT_OK   = qw();
-    %EXPORT_TAGS = ();
+    use vars qw($VERSION);
+    $VERSION     = '1.0210';
 }
 
 #
@@ -291,26 +286,31 @@ or...
 sub next {
 	my ($self) = @_;
 	
-	my $current_line = $self->get_line_number();
+	# Cache the object id, to speed up the function.
+	my $selfref = refaddr $self;
 	
-	if ( defined($parse_buffer{refaddr $self})
-			and ( ($current_line+1) <= ($parse_buffer_start_line{refaddr $self} + $#{$parse_buffer{refaddr $self}}) )
-			and ( ($current_line+1) >= $parse_buffer_start_line{refaddr $self})
+	# This is the same as $self->get_current_line();
+	# (Or at least it should be.  Done for speed.)
+	my $current_line = $log_info{$selfref}{current_line};
+	
+	if ( defined($parse_buffer{$selfref})
+			and ( ($current_line+1) <= ($parse_buffer_start_line{$selfref} + $#{$parse_buffer{$selfref}}) )
+			and ( ($current_line+1) >= $parse_buffer_start_line{$selfref})
 		) {
 		
 		# Increment where we are.
-		$log_info{refaddr $self}->{current_line} = $log_info{refaddr $self}->{current_line} + 1;
+		$log_info{$selfref}->{current_line} = $log_info{$selfref}->{current_line} + 1;
 
-#		print STDERR 'Returning line number '. $self->get_line_number() ." from buffer.\n" if $debug{refaddr $self};
+#		print STDERR 'Returning line number '. $self->get_line_number() ." from buffer.\n" if $debug{$selfref};
 
 		# Return the data we were asked for.
-		return $parse_buffer{refaddr $self}->[($current_line - $parse_buffer_start_line{refaddr $self}+1)];
+		return $parse_buffer{$selfref}->[($current_line - $parse_buffer_start_line{$selfref}+1)];
 	}
 	else {
 		# Move the actual read postition to where we are.
 		# (But only if we've acutally ever read anything.)
-		if ( defined($log_info{refaddr $self}->{line_positions}->[$current_line]) ) {
-			$log_info{refaddr $self}{filehandle}->setpos($log_info{refaddr $self}->{line_positions}->[$current_line])
+		if ( defined($log_info{$selfref}->{line_positions}->[$current_line]) ) {
+			$log_info{$selfref}{filehandle}->setpos($log_info{$selfref}->{line_positions}->[$current_line])
 				or Mail::Log::Exceptions::LogFile->throw("Error seeking to position: $!\n");
 		}
 		
@@ -318,31 +318,32 @@ sub next {
 		
 		# Check if we've reached the end of the file.
 		# (And that we haven't gone back...)
-		if ( defined($parse_buffer{refaddr $self}->[0]) 
-			and $#{$parse_buffer{refaddr $self}} < $parse_buffer_size{refaddr $self}
-			and $current_line >= $parse_buffer_start_line{refaddr $self}
+		if ( defined($parse_buffer{$selfref}->[0]) 
+			and $#{$parse_buffer{$selfref}} < $parse_buffer_size{$selfref}
+			and $current_line >= $parse_buffer_start_line{$selfref}
 			) {
-			return $parse_buffer{refaddr $self}->[-1];
+			return $parse_buffer{$selfref}->[-1];
 		}
 		
 		# Clear the buffer.
-		@{$parse_buffer{refaddr $self}} = ();
+		@{$parse_buffer{$selfref}} = ();
 		
 		# Read in the buffer.
-		READ_LOOP: for my $i (0...$parse_buffer_size{refaddr $self}) {
-			$parse_buffer{refaddr $self}->[$i] = $self->_parse_next_line();
-			last READ_LOOP unless defined $parse_buffer{refaddr $self}->[$i];
+		READ_LOOP: for my $i (0...$parse_buffer_size{$selfref}) {
+			$parse_buffer{$selfref}->[$i] = $self->_parse_next_line();
+			last READ_LOOP unless defined $parse_buffer{$selfref}->[$i];
 		}
 		
 #use Data::Dumper;
 #print STDERR Data::Dumper->Dump($parse_buffer{refaddr $self});
 		
 		# Move the indexes back to the line we are reading.
-		$parse_buffer_start_line{refaddr $self} = $self->get_line_number() - $#{$parse_buffer{refaddr $self}};
-		$self->go_to_line_number($parse_buffer_start_line{refaddr $self});
+		# (Note the 'current line' direct access again...)
+		$parse_buffer_start_line{$selfref} = $log_info{$selfref}{current_line} - $#{$parse_buffer{$selfref}};
+		$self->go_to_line_number($parse_buffer_start_line{$selfref});
 		
 		# Return the data.
-		return $parse_buffer{refaddr $self}->[0];
+		return $parse_buffer{$selfref}->[0];
 	}
 }
 
@@ -503,8 +504,9 @@ Example:
 =cut
 
 sub get_line_number () {
-	my ($self) = @_;
-	return $log_info{refaddr $self}{current_line};
+	# This method gets called a lot: speed is an issue.
+	# This is as fast as I could make it.
+	return $log_info{refaddr $_[0]}{current_line};
 }
 
 =head2 go_to_line_number 
@@ -516,14 +518,14 @@ Goes to a specific logical line number.  (Preferably one that exits...)
 sub go_to_line_number {
 	my ($self, $line_number) = @_;
 
-	my $current_line_number = $self->get_line_number();
+#	my $current_line_number = $self->get_line_number();
 
 	no warnings qw(uninitialized);
-	if ( $current_line_number >= $line_number ) {
-		return $self->go_backward($current_line_number - $line_number);
+	if ( $log_info{refaddr $self}{current_line} >= $line_number ) {
+		return $self->go_backward($log_info{refaddr $self}{current_line} - $line_number);
 	}
 	else {
-		return $self->go_forward($line_number - $current_line_number);
+		return $self->go_forward($line_number - $log_info{refaddr $self}{current_line});
 	}
 }
 
@@ -561,8 +563,10 @@ C<_get_data_line>) is parsable in the currently understood format.
 sub _set_current_position_as_next_line { 
 	my ($self) = @_;
 
-	$log_info{refaddr $self}{current_line} += 1;
-	${$log_info{refaddr $self}{line_positions}}[$log_info{refaddr $self}->{current_line}] = $log_info{refaddr $self}{filehandle}->getpos()
+	my $selfref = refaddr $self;
+
+	$log_info{$selfref}{current_line} += 1;
+	${$log_info{$selfref}{line_positions}}[$log_info{$selfref}->{current_line}] = $log_info{$selfref}{filehandle}->getpos()
 		or Mail::Log::Exceptions::LogFile->throw("Unable to get current file position: $!\n");
 	return;
 }
@@ -660,6 +664,9 @@ is a result of running into what that module B<doesn't> support.  Namely
 seeking through a file, both forwards and back.)
 
 =head1 HISTORY
+
+Dec 09, 2008 (1.2.10) - Profiled and sped up code.  (Cut processing time in half
+for some cases.)
 
 Nov 28, 2008 - Documentation fixes.
 
