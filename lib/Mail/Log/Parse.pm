@@ -61,7 +61,7 @@ use base qw(Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION);
-    $VERSION     = '1.0210';
+    $VERSION     = '1.0300_1';
 }
 
 #
@@ -73,6 +73,7 @@ my %parse_buffer;
 my %parse_buffer_start_line;
 my %parse_buffer_size;
 my %debug;
+my %current_line;
 
 #
 # DESTROY class variables.
@@ -89,6 +90,7 @@ sub DESTROY {
 	delete $parse_buffer_start_line{refaddr $self};
 	delete $parse_buffer_size{refaddr $self};
 	delete $debug{refaddr $self};
+	delete $current_line{refaddr $self};
 	
 	return;
 }
@@ -102,14 +104,14 @@ use overload (
 	qw{""} => sub { my ($self) = @_;
 					return  blessed($self)
 							.' File: '
-							.$log_info{refaddr $self}{'filename'}
+							.$log_info{$$self}{'filename'}
 							.' Line: '
-							.$log_info{refaddr $self}{'current_line'};
+							.$current_line{$$self};
 					},
 	
 	# Boolean overloads to if we are usable.  (Have a filehandle.)
 	qw{bool} => sub { my ($self) = @_;
-						return defined($log_info{refaddr $self}{'filehandle'});
+						return defined($log_info{$$self}{'filehandle'});
 					},
 	
 	# Numeric context just doesn't mean anything.  Throw an error.
@@ -117,7 +119,7 @@ use overload (
 				},
 	
 	# Heh.  Iterator context is the same as 'next'...
-	q{<>} => sub { my ($self) = @_; return $self->next(); },
+	q{<>} => sub { return $_[0]->next(); },
 	
 	# Perl standard for everything else.
 	fallback => 1,
@@ -148,21 +150,22 @@ sub new
     my ($class, $parameters_ref) = @_;
 
     my $self = bless \do{my $anon}, $class;
+	$$self = refaddr $self;
 
 	# Log info.
 	if ( defined($parameters_ref->{'log_file'}) ) {
 		$self->set_logfile($parameters_ref->{'log_file'});  # Better to keep validation together.
 	}
 
-	$debug{refaddr $self} = defined($parameters_ref->{debug});
+	$debug{$$self} = defined($parameters_ref->{debug});
 
 #$debug{refaddr $self} = 1;
 
 	# Init the buffer.
-	$log_info{refaddr $self}{current_line} = 0;
-	$parse_buffer_start_line{refaddr $self} = 0;
-	$parse_buffer{refaddr $self} = undef;
-	$parse_buffer_size{refaddr $self} = defined($parameters_ref->{buffer_length}) ? $parameters_ref->{buffer_length} : 128;
+	$current_line{$$self} = 0;
+	$parse_buffer_start_line{$$self} = 0;
+	$parse_buffer{$$self} = undef;
+	$parse_buffer_size{$$self} = defined($parameters_ref->{buffer_length}) ? $parameters_ref->{buffer_length} : 128;
 
 
 	return $self;
@@ -198,7 +201,7 @@ sub set_logfile {
 	# and then that we can read it, before accpeting the filename.
 	if ( -e $new_name ) {
 		if ( -r $new_name ) {
-			$log_info{refaddr $self}{'filename'} = $new_name;
+			$log_info{$$self}{'filename'} = $new_name;
 
 			# We'll check the extension to see if it is compressed.
 			my (undef, undef, $suffix) = fileparse($new_name, qw(tgz zip gz bz2));
@@ -220,18 +223,18 @@ sub set_logfile {
 					or Mail::Log::Exceptions::LogFile->throw("Unable to uncompress logfile $new_name: ". $IO::Uncompress::AnyUncompress::AnyUncompressError ."\n");
 				$temp->seek(0,0)
 					or Mail::Log::Exceptions::LogFile->throw("Unable to seek to beginning of temp file.\n");
-				$log_info{refaddr $self}{'filehandle'} = $temp;
+				$log_info{$$self}{'filehandle'} = $temp;
 			}
 			else {
 				# If it wasn't compressed, open it direct.
-				$log_info{refaddr $self}{'filehandle'} = IO::File->new($new_name, '<')
+				$log_info{$$self}{'filehandle'} = IO::File->new($new_name, '<')
 					or Mail::Log::Exceptions::LogFile->throw("Unable to open file $new_name: $!\n");
 			}
 
 			# Init some location information on the file.
-			$log_info{refaddr $self}->{'current_line'} = 0;
-			delete $log_info{refaddr $self}{'line_positions'};
-			${$log_info{refaddr $self}{'line_positions'}}[$log_info{refaddr $self}{'current_line'}] = $log_info{refaddr $self}{'filehandle'}->getpos();
+			$current_line{$$self} = 0;
+			delete $log_info{$$self}->{'line_positions'};
+			${$log_info{$$self}{'line_positions'}}[$current_line{$$self}] = $log_info{$$self}{'filehandle'}->getpos();
 		}
 		else {
 			Mail::Log::Exceptions::LogFile->throw("Log file $new_name is not readable.\n");
@@ -286,31 +289,28 @@ or...
 sub next {
 	my ($self) = @_;
 	
-	# Cache the object id, to speed up the function.
-	my $selfref = refaddr $self;
-	
 	# This is the same as $self->get_current_line();
 	# (Or at least it should be.  Done for speed.)
-	my $current_line = $log_info{$selfref}{current_line};
+	my $current_line = $current_line{$$self};
 	
-	if ( defined($parse_buffer{$selfref})
-			and ( ($current_line+1) <= ($parse_buffer_start_line{$selfref} + $#{$parse_buffer{$selfref}}) )
-			and ( ($current_line+1) >= $parse_buffer_start_line{$selfref})
+	if ( defined($parse_buffer{$$self})
+			and ( ($current_line+1) <= ($parse_buffer_start_line{$$self} + $#{$parse_buffer{$$self}}) )
+			and ( ($current_line+1) >= $parse_buffer_start_line{$$self})
 		) {
 		
 		# Increment where we are.
-		$log_info{$selfref}->{current_line} = $log_info{$selfref}->{current_line} + 1;
+		$current_line{$$self} = $current_line{$$self} + 1;
 
 #		print STDERR 'Returning line number '. $self->get_line_number() ." from buffer.\n" if $debug{$selfref};
 
 		# Return the data we were asked for.
-		return $parse_buffer{$selfref}->[($current_line - $parse_buffer_start_line{$selfref}+1)];
+		return $parse_buffer{$$self}->[($current_line - $parse_buffer_start_line{$$self}+1)];
 	}
 	else {
 		# Move the actual read postition to where we are.
 		# (But only if we've acutally ever read anything.)
-		if ( defined($log_info{$selfref}->{line_positions}->[$current_line]) ) {
-			$log_info{$selfref}{filehandle}->setpos($log_info{$selfref}->{line_positions}->[$current_line])
+		if ( defined($log_info{$$self}->{line_positions}->[$current_line]) ) {
+			$log_info{$$self}{filehandle}->setpos($log_info{$$self}->{line_positions}->[$current_line])
 				or Mail::Log::Exceptions::LogFile->throw("Error seeking to position: $!\n");
 		}
 		
@@ -318,20 +318,20 @@ sub next {
 		
 		# Check if we've reached the end of the file.
 		# (And that we haven't gone back...)
-		if ( defined($parse_buffer{$selfref}->[0]) 
-			and $#{$parse_buffer{$selfref}} < $parse_buffer_size{$selfref}
-			and $current_line >= $parse_buffer_start_line{$selfref}
+		if ( defined($parse_buffer{$$self}->[0]) 
+			and $#{$parse_buffer{$$self}} < $parse_buffer_size{$$self}
+			and $current_line >= $parse_buffer_start_line{$$self}
 			) {
-			return $parse_buffer{$selfref}->[-1];
+			return $parse_buffer{$$self}->[-1];
 		}
 		
 		# Clear the buffer.
-		@{$parse_buffer{$selfref}} = ();
+		@{$parse_buffer{$$self}} = ();
 		
 		# Read in the buffer.
-		READ_LOOP: for my $i (0...$parse_buffer_size{$selfref}) {
-			$parse_buffer{$selfref}->[$i] = $self->_parse_next_line();
-			last READ_LOOP unless defined $parse_buffer{$selfref}->[$i];
+		READ_LOOP: for my $i (0...$parse_buffer_size{$$self}) {
+			$parse_buffer{$$self}->[$i] = $self->_parse_next_line();
+			last READ_LOOP unless defined $parse_buffer{$$self}->[$i];
 		}
 		
 #use Data::Dumper;
@@ -339,11 +339,11 @@ sub next {
 		
 		# Move the indexes back to the line we are reading.
 		# (Note the 'current line' direct access again...)
-		$parse_buffer_start_line{$selfref} = $log_info{$selfref}{current_line} - $#{$parse_buffer{$selfref}};
-		$self->go_to_line_number($parse_buffer_start_line{$selfref});
+		$parse_buffer_start_line{$$self} = $current_line{$$self} - $#{$parse_buffer{$$self}};
+		$self->go_to_line_number($parse_buffer_start_line{$$self});
 		
 		# Return the data.
-		return $parse_buffer{$selfref}->[0];
+		return $parse_buffer{$$self}->[0];
 	}
 }
 
@@ -361,7 +361,7 @@ sub previous {
 	my ($self) = @_;
 
 	# Check if we can.
-	if ( $log_info{refaddr $self}->{'current_line'} <= 1 ) {
+	if ( $current_line{$$self} <= 1 ) {
 		return undef;
 	}
 
@@ -386,33 +386,35 @@ Example:
 =cut
 
 sub go_forward {
-	my ($self, $lines) = @_;
+	my $self = shift;
+	my $lines = shift;
 	
 	# Just because I'm paranoid.
 	$lines ||= 1;
 	
 	# If we've read the line before, go straight to it.
-	if ( ${$log_info{refaddr $self}{line_positions}}[($log_info{refaddr $self}->{current_line}+$lines)] ) {
-		$log_info{refaddr $self}->{current_line} = $log_info{refaddr $self}->{current_line} + $lines;
+	if ( ${$log_info{$$self}{line_positions}}[($current_line{$$self}+$lines)] ) {
+		$current_line{$$self} = $current_line{$$self} + $lines;
+		return 1;
 	}
 	else {
 		# Work out where we are.
 		my $start_pos = $self->get_line_number();
-		my $end_known_pos = $#{$log_info{refaddr $self}{line_positions}};	# zero-indexed.
+		my $end_known_pos = $#{$log_info{$$self}{line_positions}};	# zero-indexed.
 		my $lines_remaining = $lines - ($end_known_pos - $start_pos);
 
 		# Go to the last line we have.
-		$log_info{refaddr $self}->{current_line} = $#{$log_info{refaddr $self}{line_positions}};
+		$current_line{$$self} = $#{$log_info{$$self}{line_positions}};
 		
 		# Then read until we get to the line we want.
 		if ( $self->next() ) {
-			return $self->go_forward($lines_remaining - 1);
+			unshift @_, ($self, $lines_remaining - 1 );
+			goto &go_forward;
 		}
 		else {
 			return 0;
 		}
 	}
-	return 1;
 }
 
 =head2 go_backward
@@ -438,12 +440,12 @@ sub go_backward {
 	$lines ||= 1;
 
 	# If the line exits, go straight to it.
-	if ( ($log_info{refaddr $self}->{'current_line'} - $lines ) > 0 ) {
-		$log_info{refaddr $self}{'current_line'} -= $lines;
+	if ( ($current_line{$$self} - $lines ) > 0 ) {
+		$current_line{$$self} -= $lines;
 	}
 	else {
 		#If they've asked us to go beyond the beginning of the file, just go to the beginning.
-		$log_info{refaddr $self}->{'current_line'} = 0;
+		$current_line{$$self} = 0;
 		return 0;
 	}
 	return 1;
@@ -460,7 +462,7 @@ Returns true on success.
 sub go_to_beginning {
 	my ($self) = @_;
 
-	$log_info{refaddr $self}->{'current_line'} = 0;
+	$current_line{$$self} = 0;
 
 	return 1;
 }
@@ -479,15 +481,14 @@ sub go_to_end {
 	my ($self) = @_;
 	
 	# Go to the end of what we have.
-	$log_info{refaddr $self}->{current_line} = $#{$log_info{refaddr $self}{line_positions}};
+	$current_line{$$self} = $#{$log_info{$$self}{line_positions}};
 
-	# Read more.
-	while ( $self->next() ) {
-		# Since we're buffering, we read more than just one line.  Skip it all.
-		$log_info{refaddr $self}->{current_line} = $#{$log_info{refaddr $self}{line_positions}};
+	if ( !$self->next() ) {
+		return 1;
 	}
-
-	return 1;
+	else {
+		goto &go_to_end;
+	}
 }
 
 =head2 get_line_number
@@ -506,7 +507,7 @@ Example:
 sub get_line_number () {
 	# This method gets called a lot: speed is an issue.
 	# This is as fast as I could make it.
-	return $log_info{refaddr $_[0]}{current_line};
+	return $current_line{${$_[0]}};
 }
 
 =head2 go_to_line_number 
@@ -521,11 +522,11 @@ sub go_to_line_number {
 #	my $current_line_number = $self->get_line_number();
 
 	no warnings qw(uninitialized);
-	if ( $log_info{refaddr $self}{current_line} >= $line_number ) {
-		return $self->go_backward($log_info{refaddr $self}{current_line} - $line_number);
+	if ( $current_line{$$self} >= $line_number ) {
+		return $self->go_backward($current_line{$$self} - $line_number);
 	}
 	else {
-		return $self->go_forward($line_number - $log_info{refaddr $self}{current_line});
+		return $self->go_forward($line_number - $current_line{$$self});
 	}
 }
 
@@ -563,10 +564,8 @@ C<_get_data_line>) is parsable in the currently understood format.
 sub _set_current_position_as_next_line { 
 	my ($self) = @_;
 
-	my $selfref = refaddr $self;
-
-	$log_info{$selfref}{current_line} += 1;
-	${$log_info{$selfref}{line_positions}}[$log_info{$selfref}->{current_line}] = $log_info{$selfref}{filehandle}->getpos()
+	$current_line{$$self} += 1;
+	${$log_info{$$self}{line_positions}}[$current_line{$$self}] = $log_info{$$self}{filehandle}->getpos()
 		or Mail::Log::Exceptions::LogFile->throw("Unable to get current file position: $!\n");
 	return;
 }
@@ -580,13 +579,13 @@ from the logfile, seperated by the current input seperator.
 
 sub _get_data_line {
 	my ($self) = @_;
-	return $log_info{refaddr $self}{filehandle}->getline();
+	return $log_info{$$self}{filehandle}->getline();
 }
 
 sub _clear_buffer {
 	my ($self) = @_;
-	@{$parse_buffer{refaddr $self}} = undef;
-	$parse_buffer_start_line{refaddr $self} = -1;
+	@{$parse_buffer{$$self}} = undef;
+	$parse_buffer_start_line{$$self} = -1;
 	return;
 }
 

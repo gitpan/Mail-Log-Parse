@@ -1,6 +1,6 @@
 ---
 name: Mail-Log-Parse
-version: 1.0210
+version: 1.0300_1
 author:
   - 'Daniel Staal - <DStaal@usa.net>'
 abstract: Parse and return info in maillogs.
@@ -23,7 +23,7 @@ dynamic_config: 0
 provides:
   Mail::Log::Parse:
     file: lib/Mail/Log/Parse.pm
-    version: 1.0210
+    version: 1.0300_1
   Mail::Log::Parse::Postfix:
     file: lib/Mail/Log/Parse/Postfix.pm
     version: 1.0410

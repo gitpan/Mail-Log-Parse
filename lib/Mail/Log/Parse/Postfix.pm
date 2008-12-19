@@ -71,7 +71,7 @@ my %log_info;
 sub DESTROY {
 	my ($self) = @_;
 	
-	delete $log_info{refaddr $self};
+	delete $log_info{$$self};
 	
 	$self->SUPER::DESTROY();
 	
@@ -153,11 +153,11 @@ sub _parse_next_line {
 	# First few fields are the date.  Convert back to Unix format...
 	{	# We don't need all these temp variables hanging around.
 		my ($log_hour, $log_minutes, $log_seconds) = split /:/, $line_data[2];
-		if (!defined($log_info{refaddr $self}->{year}) ) {
+		if (!defined($log_info{$$self}->{year}) ) {
 			$line_info{timestamp} = timelocal($log_seconds, $log_minutes, $log_hour, $line_data[1], $MONTH_NUMBER{$line_data[0]}, $CURR_DATE[5]);
 		}
 		else {
-			$line_info{timestamp} = timelocal($log_seconds, $log_minutes, $log_hour, $line_data[1], $MONTH_NUMBER{$line_data[0]}, $log_info{refaddr $self}->{year});
+			$line_info{timestamp} = timelocal($log_seconds, $log_minutes, $log_hour, $line_data[1], $MONTH_NUMBER{$line_data[0]}, $log_info{$$self}->{year});
 		}
 	}
 
@@ -185,27 +185,27 @@ sub _parse_next_line {
 	# (These may or may not return any info...)
 
 	# To address
-	@{$line_info{to}} = $line_info{text} =~ m/to=([^,]+),/g;
+	@{$line_info{to}} = $line_info{text} =~ m/\bto=([^,]+),/g;
 
 	# From address
-	($line_info{from}) = $line_info{text} =~ m/from=([^,]+),/;
+	($line_info{from}) = $line_info{text} =~ m/\bfrom=([^,]+),/;
 
 	# Relay
-	($line_info{relay}) = $line_info{text} =~ m/relay=([^,]+),/;
+	($line_info{relay}) = $line_info{text} =~ m/\brelay=([^,]+),/;
 
 	# Status
-	($line_info{status}) = $line_info{text} =~ m/status=(.+)$/;
+	($line_info{status}) = $line_info{text} =~ m/\bstatus=(.+)$/;
 
 	# Size
-	($line_info{size}) = $line_info{text} =~ m/size=([^,]+),/;
+	($line_info{size}) = $line_info{text} =~ m/\bsize=([^,]+),/;
 
 	# Delays
 	($line_info{delay_before_queue}, $line_info{delay_in_queue}, $line_info{delay_connect_setup}, $line_info{delay_message_transmission} )
-		= $line_info{text} =~ m{delays=([^/]+)/([^/]+)/([^/]+)/([^,]+),};
-	($line_info{delay}) = $line_info{text} =~ m/delay=([\d.]+),/;
+		= $line_info{text} =~ m{\bdelays=([^/]+)/([^/]+)/([^/]+)/([^,]+),};
+	($line_info{delay}) = $line_info{text} =~ m/\bdelay=([\d.]+),/;
 
 	# Message ID
-	($line_info{msgid}) = $line_info{text} =~ m/message-id=(.+)$/;
+	($line_info{msgid}) = $line_info{text} =~ m/\bmessage-id=(.+)$/;
 
 	# Connect (Boolean)
 	$line_info{connect} = $line_info{text} =~ m/\bconnect from/;
