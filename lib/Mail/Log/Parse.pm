@@ -61,7 +61,7 @@ use base qw(Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION);
-    $VERSION     = '1.0300_1';
+    $VERSION     = '1.0300';
 }
 
 #
@@ -544,6 +544,69 @@ sub _parse_next_line {
 # These are semi-private methods: They are for the use of subclasses only.
 #
 
+=head1 SUBCLASSING
+
+This class is useless without subclasses to handle specific file formats.  As
+such, attempts have been made to make subclassing as painless as possible.  In
+general, you should only ever have to implement one method: C<_parse_next_line>.
+
+C<_parse_next_line> will be called whenever another line of the log needs to be
+read.  Its responsiblity is to indentify the next line, report where that is
+in the actual file, and to parse that line.
+
+Specifically, it should I<not> assume that every line in the input file is a
+valid log line.  It is expected to check first.
+
+Mail::Log::Parse is (as of v1.3) a cached inside-out object.  If you don't know
+what that means, ignore it: just writing C<_parse_next_line> correctly is enough.
+However, if you find you need to store sub-class object info for some reason,
+and want to use an inside-out object syntax yourself, C<$$self == refaddr $self>.
+Which is useful and fast.
+
+Speed I<is> important.  It is not unlikely for someone to try to parse through
+a week's worth of logs from a dozen boxes, where each day's log is hundreds of
+megabytes worth of data.  Be as good as you can.
+
+One other thing: Realize that you may also be subclassed.  Even if you parse
+every possible option of some log format, someone somewhere will probably have
+a customized version with a slightly different format.  If you've done your job
+well, they'll be able to use your parser and just extend it slightly.  Key to
+this is to leave the I<unaltered> line in the return hash under the 'text' key.
+
+=head2 Suggested usage:
+
+Suggestion on how to use the above two methods to implement a '_parse_next_line' routine in
+a subclass:
+
+  sub _parse_next_line {
+	my ($self) = @_;
+
+	# The hash we will return.
+	my %line_info = ( program => '' );
+
+	# Some temp variables.
+	my $line;
+
+	# In a mixed-log enviornment, we can't count on any 
+	# particular line being something we can parse.  Keep
+	# going until we can.
+	while ( $line_info{program} !~ m/$program_name/ ) {
+		# Read the line, using the Mail::Log::Parse utilty method.
+		$line = $self->_get_data_line() or return undef;
+
+		# Program name.
+		$line_info{program} = $line ~= m/$regrex/;
+	}
+
+	# Ok, let's update where we are, using the Mail::Log::Parse utility method.
+	$self->_set_current_position_as_next_line();
+
+	# Continue parsing
+	...
+	
+	return \%line_info;
+ }
+
 =head1 UTLITY METHODS
 
 The following methods are not for general consumption: They are specifically
@@ -582,46 +645,24 @@ sub _get_data_line {
 	return $log_info{$$self}{filehandle}->getline();
 }
 
+=head2 _clear_buffer
+
+Clears the internal buffer of any data that may have been read into it so far.
+Normally you should never need to use this: It is provided only for those rare
+cases where something that has already been read may be changed because of
+outside input.  (For instance: You can change the year dates are assumed to be
+in during mid-read on Postfix.)
+
+Avoid using unless actually needed.
+
+=cut
+
 sub _clear_buffer {
 	my ($self) = @_;
 	@{$parse_buffer{$$self}} = undef;
 	$parse_buffer_start_line{$$self} = -1;
 	return;
 }
-
-
-=head2 Suggested usage:
-
-Suggestion on how to use the above two methods to implement a '_parse_next_line' routine in
-a subclass:
-
-  sub _parse_next_line {
-	my ($self) = @_;
-
-	# The hash we will return.
-	my %line_info = ( program => '' );
-
-	# Some temp variables.
-	my $line;
-
-	# In a mixed-log enviornment, we can't count on any 
-	# particular line being something we can parse.  Keep
-	# going until we can.
-	while ( $line_info{program} !~ m/$program_name/ ) {
-		# Read the line.
-		$line = $self->_get_data_line() or return undef;
-
-		# Program name.
-		$line_info{program} = $line ~= m/$regrex/;
-	}
-
-	# Ok, let's update our info.
-	$self->_set_current_position_as_next_line();
-
-	# Continue parsing
-	...
-
-=cut
 
 #
 # Fully private methods.
@@ -663,6 +704,9 @@ is a result of running into what that module B<doesn't> support.  Namely
 seeking through a file, both forwards and back.)
 
 =head1 HISTORY
+
+Dec 23, 2008 (1.3.0) - Further code speedups.  Now stores a cache of the refaddr
+for easy and quick access.
 
 Dec 09, 2008 (1.2.10) - Profiled and sped up code.  (Cut processing time in half
 for some cases.)

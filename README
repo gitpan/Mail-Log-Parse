@@ -178,6 +178,70 @@ USAGE
 
     Goes to a specific logical line number. (Preferably one that exits...)
 
+SUBCLASSING
+    This class is useless without subclasses to handle specific file
+    formats. As such, attempts have been made to make subclassing as
+    painless as possible. In general, you should only ever have to implement
+    one method: `_parse_next_line'.
+
+    `_parse_next_line' will be called whenever another line of the log needs
+    to be read. Its responsiblity is to indentify the next line, report
+    where that is in the actual file, and to parse that line.
+
+    Specifically, it should *not* assume that every line in the input file
+    is a valid log line. It is expected to check first.
+
+    Mail::Log::Parse is (as of v1.3) a cached inside-out object. If you
+    don't know what that means, ignore it: just writing `_parse_next_line'
+    correctly is enough. However, if you find you need to store sub-class
+    object info for some reason, and want to use an inside-out object syntax
+    yourself, `$$self == refaddr $self'. Which is useful and fast.
+
+    Speed *is* important. It is not unlikely for someone to try to parse
+    through a week's worth of logs from a dozen boxes, where each day's log
+    is hundreds of megabytes worth of data. Be as good as you can.
+
+    One other thing: Realize that you may also be subclassed. Even if you
+    parse every possible option of some log format, someone somewhere will
+    probably have a customized version with a slightly different format. If
+    you've done your job well, they'll be able to use your parser and just
+    extend it slightly. Key to this is to leave the *unaltered* line in the
+    return hash under the 'text' key.
+
+  Suggested usage:
+
+    Suggestion on how to use the above two methods to implement a
+    '_parse_next_line' routine in a subclass:
+
+      sub _parse_next_line {
+            my ($self) = @_;
+
+            # The hash we will return.
+            my %line_info = ( program => '' );
+
+            # Some temp variables.
+            my $line;
+
+            # In a mixed-log enviornment, we can't count on any 
+            # particular line being something we can parse.  Keep
+            # going until we can.
+            while ( $line_info{program} !~ m/$program_name/ ) {
+                    # Read the line, using the Mail::Log::Parse utilty method.
+                    $line = $self->_get_data_line() or return undef;
+
+                    # Program name.
+                    $line_info{program} = $line ~= m/$regrex/;
+            }
+
+            # Ok, let's update where we are, using the Mail::Log::Parse utility method.
+            $self->_set_current_position_as_next_line();
+
+            # Continue parsing
+            ...
+        
+            return \%line_info;
+     }
+
 UTLITY METHODS
     The following methods are not for general consumption: They are
     specifically provided for use in implementing subclasses. Using them
@@ -199,36 +263,15 @@ UTLITY METHODS
     Returns the next line of data, as a string, from the logfile. This is
     raw data from the logfile, seperated by the current input seperator.
 
-  Suggested usage:
+  _clear_buffer
 
-    Suggestion on how to use the above two methods to implement a
-    '_parse_next_line' routine in a subclass:
+    Clears the internal buffer of any data that may have been read into it
+    so far. Normally you should never need to use this: It is provided only
+    for those rare cases where something that has already been read may be
+    changed because of outside input. (For instance: You can change the year
+    dates are assumed to be in during mid-read on Postfix.)
 
-      sub _parse_next_line {
-            my ($self) = @_;
-
-            # The hash we will return.
-            my %line_info = ( program => '' );
-
-            # Some temp variables.
-            my $line;
-
-            # In a mixed-log enviornment, we can't count on any 
-            # particular line being something we can parse.  Keep
-            # going until we can.
-            while ( $line_info{program} !~ m/$program_name/ ) {
-                    # Read the line.
-                    $line = $self->_get_data_line() or return undef;
-
-                    # Program name.
-                    $line_info{program} = $line ~= m/$regrex/;
-            }
-
-            # Ok, let's update our info.
-            $self->_set_current_position_as_next_line();
-
-            # Continue parsing
-            ...
+    Avoid using unless actually needed.
 
 BUGS
     `go_forward' and `go_backward' at the moment don't test for negative
@@ -262,6 +305,9 @@ SEE ALSO
     Namely seeking through a file, both forwards and back.)
 
 HISTORY
+    Dec 23, 2008 (1.3.0) - Further code speedups. Now stores a cache of the
+    refaddr for easy and quick access.
+
     Dec 09, 2008 (1.2.10) - Profiled and sped up code. (Cut processing time
     in half for some cases.)
 

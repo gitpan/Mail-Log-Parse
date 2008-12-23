@@ -9,6 +9,8 @@ use Mail::Log::Parse;
 use Mail::Log::Parse::Postfix;
 use Mail::Log::Exceptions;
 
+#use Test::Differences;
+
 # A quick test of Mail::Log::Parse.
 {
 	my $object;

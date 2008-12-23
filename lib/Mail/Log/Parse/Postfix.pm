@@ -25,7 +25,7 @@ use strict;
 use warnings;
 use Scalar::Util qw(refaddr);
 use Time::Local;
-use Mail::Log::Parse;
+use Mail::Log::Parse 1.0300;
 use Mail::Log::Exceptions;
 use base qw(Mail::Log::Parse Exporter);
 
@@ -35,7 +35,7 @@ memoize('timelocal');
 BEGIN {
     use Exporter ();
     use vars qw($VERSION);
-    $VERSION     = '1.0410';
+    $VERSION     = '1.0411';
 }
 
 # A constant, to convert month names to month numbers.
@@ -187,31 +187,40 @@ sub _parse_next_line {
 	# To address
 	@{$line_info{to}} = $line_info{text} =~ m/\bto=([^,]+),/g;
 
-	# From address
-	($line_info{from}) = $line_info{text} =~ m/\bfrom=([^,]+),/;
+	if ( defined($line_info{to}[0]) ) {
+		# Relay
+		($line_info{relay}) = $line_info{text} =~ m/\brelay=([^,]+),/;
 
-	# Relay
-	($line_info{relay}) = $line_info{text} =~ m/\brelay=([^,]+),/;
+		# Delays
+		($line_info{delay_before_queue}, $line_info{delay_in_queue}, $line_info{delay_connect_setup}, $line_info{delay_message_transmission} )
+			= $line_info{text} =~ m{\bdelays=([^/]+)/([^/]+)/([^/]+)/([^,]+),};
+		($line_info{delay}) = $line_info{text} =~ m/\bdelay=([\d.]+),/;
 
-	# Status
-	($line_info{status}) = $line_info{text} =~ m/\bstatus=(.+)$/;
+		# Status
+		($line_info{status}) = $line_info{text} =~ m/\bstatus=(.+)$/;
 
-	# Size
-	($line_info{size}) = $line_info{text} =~ m/\bsize=([^,]+),/;
+		@line_info{'from', 'size', 'msgid', 'connect', 'disconnect'} = undef;
+	}
+	else {
+		# From address
+		($line_info{from}) = $line_info{text} =~ m/\bfrom=([^,]+),/;
 
-	# Delays
-	($line_info{delay_before_queue}, $line_info{delay_in_queue}, $line_info{delay_connect_setup}, $line_info{delay_message_transmission} )
-		= $line_info{text} =~ m{\bdelays=([^/]+)/([^/]+)/([^/]+)/([^,]+),};
-	($line_info{delay}) = $line_info{text} =~ m/\bdelay=([\d.]+),/;
+		# Size
+		($line_info{size}) = $line_info{text} =~ m/\bsize=([^,]+),/;
 
-	# Message ID
-	($line_info{msgid}) = $line_info{text} =~ m/\bmessage-id=(.+)$/;
+		# Message ID
+		($line_info{msgid}) = $line_info{text} =~ m/\bmessage-id=(.+)$/;
 
-	# Connect (Boolean)
-	$line_info{connect} = $line_info{text} =~ m/\bconnect from/;
+		# Connect (Boolean)
+		$line_info{connect} = $line_info{text} =~ m/\bconnect from/;
 
-	# Disconnect (Boolean)
-	$line_info{disconnect} = $line_info{text} =~ m/\bdisconnect from/;
+		# Disconnect (Boolean)
+		$line_info{disconnect} = $line_info{text} =~ m/\bdisconnect from/;
+
+		@line_info{'relay', 'status', 'delay_before_queue', 'delay_in_queue'
+					, 'delay_connect_setup', 'delay_message_transmission', 'delay'}
+					= undef;
+	}
 
 	# Return the data.
 	return \%line_info;
@@ -237,6 +246,9 @@ DStaal@usa.net
 L<Mail::Log::Parse>, for the main documentation on this module set.
 
 =head1 HISTORY
+
+Dec 23, 2008 (1.4.11) - Further speedups.  Now requires Mail::Log::Parse of at
+least version 1.3.0.
 
 Dec 09, 2008 (1.4.10) - Profiled code, did some speedups.  Added dependency on
 Memoize: For large logs this is a massive speedup.  For extremely sparse logs
