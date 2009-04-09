@@ -13,7 +13,7 @@ Mail::Log::Parse - Parse and return info in maillogs
   $object = Mail::Log::Parse->new({  log_file => '/path/to/logfile'  });
   %line_info = %{object->next()};
   
-  $line_num = $object->get_line_num();
+  $line_num = $object->get_line_number();
   
   if ( $object->go_forward($amount) ) {
     ...
@@ -29,7 +29,7 @@ Mail::Log::Parse - Parse and return info in maillogs
 
 This is the root-level module for a generic mail log file parser.  It is capable
 of opening either a compressed or uncompressed logfile, and either stepping
-through it line by line, or seaking around in it based on the logical lines.
+through it line by line, or seeking around in it based on the logical lines.
 (Lines not pertaining to the type of log currently being searched are skipped,
 as if they don't exist.)
 
@@ -43,10 +43,10 @@ This is an object-oriented module.  Avalible object methods are below.
 
 In a string context, it will return a string specifying the path to the file
 and the current line number.  In a boolean context, it will return whether it
-has been correctly initilized.  (Whether it has a file.)  Numeric context throws
+has been correctly initialized.  (Whether it has a file.)  Numeric context throws
 an error.
 
-Oh, and interator context ('<>') returns the same as 'next'...
+Oh, and iterator context ('<>') returns the same as 'next'...
 
 =cut
 
@@ -61,7 +61,7 @@ use base qw(Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION);
-    $VERSION     = '1.0300';
+    $VERSION     = '1.0301';
 }
 
 #
@@ -139,7 +139,7 @@ have not passed it in the constructor.
 
 Optional keys in the hash are 'buffer_length' and 'debug'.  The buffer length
 is the number of lines to read at a time (and store in the internal buffer).
-Default is 128.  Setting debug to a true value will result is some debugging
+Default is 128.  Setting debug to a true value will result in some debugging
 information being printed to STDERR.  (I reserve the right to remove or change
 the debug info at any time.)
 
@@ -642,7 +642,12 @@ from the logfile, seperated by the current input seperator.
 
 sub _get_data_line {
 	my ($self) = @_;
-	return $log_info{$$self}{filehandle}->getline();
+	if ( defined($log_info{$$self}{filehandle}) ){
+		return $log_info{$$self}{filehandle}->getline()
+	}
+	else {
+		Mail::Log::Exceptions::LogFile->throw("Trying to read without a valid logfile: $!\n");
+	}
 }
 
 =head2 _clear_buffer
@@ -685,11 +690,11 @@ location will allow you to retrieve the correct file length.
 
 =head1 REQUIRES
 
-Scalar::Util, File::Basename, IO::File, Mail::Log::Exceptions
+L<Scalar::Util>, L<File::Basename>, L<IO::File>, L<Mail::Log::Exceptions>
 
 =head1 RECOMMENDS
 
-IO::Uncompress::AnyUncompress, File::Temp
+L<IO::Uncompress::AnyUncompress>, L<File::Temp>
 
 =head1 AUTHOR
 
@@ -700,10 +705,13 @@ DStaal@usa.net
 =head1 SEE ALSO
 
 L<Parse::Syslog::Mail>, which does some of what this module does.  (This module
-is a result of running into what that module B<doesn't> support.  Namely
+is a result of running into what that module I<doesn't> support.  Namely
 seeking through a file, both forwards and back.)
 
 =head1 HISTORY
+
+April 9, 2009 (1.3.1) - Documentation fixes, better handling of trying to work
+without a valid logfile.
 
 Dec 23, 2008 (1.3.0) - Further code speedups.  Now stores a cache of the refaddr
 for easy and quick access.

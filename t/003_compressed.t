@@ -10,7 +10,7 @@ use Mail::Log::Exceptions;
 
 if ( eval{ require IO::Uncompress::AnyUncompress } and eval{ require IO::Uncompress::Gunzip }
 			and eval{ require File::Temp; File::Temp->VERSION(0.17); } ) {
-	plan( tests => 248 );
+	plan( tests => 264 );
 }
 else {
 	plan( skip_all => 'Need IO::Uncompress::AnyUncompress and IO::Uncompress::Gunzip installed.');
@@ -22,12 +22,22 @@ my $year = 2020;
 # The keys list.
 my @keys = sort qw(to from relay pid msgid program host status id timestamp text size delay_before_queue 
 					delay_in_queue delay_connect_setup delay_message_transmission delay connect
-					disconnect);
+					disconnect previous_host previous_host_name previous_host_ip);
 
 ### Test the non-working. ###
 {
 my $object;
 throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/log.gz'})} 'Mail::Log::Exceptions::LogFile';
+$object = Mail::Log::Parse::Postfix->new({'logfile' => 't/log.gz'});
+
+# Boolean coercion: False condition.
+ok(!($object), 'False boolean coercion.');
+
+throws_ok {my $line = $object->next()} 'Mail::Log::Exceptions::LogFile';
+
+# The next test doesn't work for root.  Try to skip if we need to.
+SKIP:  {
+	skip 'This test cannot be run as root.', 1 if ( $> == 0 );
 
 	# This is going to test
 	# a file that exists, but we can't read...
@@ -37,6 +47,7 @@ chmod (0644, 't/data/log.gz');	# Make sure we set it back at the end.
 
 # Now we test an unreadable gzip file.
 #throws_ok {$object = Mail::Log::Parse::Postfix->new({'log_file' => 't/data/log_bad.gz'})} 'Mail::Log::Exceptions::LogFile';
+}
 }
 
 my $object = Mail::Log::Parse::Postfix->new({year => 2020, buffer_length => 65});
@@ -80,6 +91,7 @@ is($result->{delay_connect_setup}, '0', 'Read first delay connect setup.');
 is($result->{delay_message_transmission}, '0.09', 'Read first delay message transmission.');
 is($result->{delay}, '0.63', 'Read first total delay.');
 is($result->{size}, undef, 'Read first size.');
+is($result->{previous_host}, undef, 'Read first: Remote Host');
 ok(!($result->{connect}), 'Read first Connect');
 ok(!($result->{disconnect}), 'Read first disconnect');
 }
@@ -110,6 +122,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{delay_message_transmission}, undef, 'Read after skip delay message transmission.');
 	is($result->{delay}, undef, 'Read after skip total delay.');
 	is($result->{size}, undef, 'Read after skip: size');
+	is($result->{previous_host}, undef, 'Read after skip: Remote Host');
 	ok(!($result->{connect}), 'Read after skip: Connect');
 	ok(!($result->{disconnect}), 'Read after skip: disconnect');
 }
@@ -132,6 +145,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read connect: timestamp');
 	is($result->{text}, 'connect from localhost.localdomain[127.0.0.1]', 'Read connect: text');
 	is($result->{size}, undef, 'Read connect: size');
+	is($result->{previous_host}, 'localhost.localdomain[127.0.0.1]', 'Read connect: Remote Host');
 	ok($result->{connect}, 'Read connect: Connect');
 	ok(!($result->{disconnect}), 'Read connect: disconnect');
 }
@@ -158,9 +172,9 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read after backs timestamp');
 	is($result->{text}, 'connect from localhost.localdomain[127.0.0.1]');
 	is($result->{size}, undef, 'Read after back: size');
+	is($result->{previous_host}, 'localhost.localdomain[127.0.0.1]', 'Read after back: Remote Host');
 	ok(($result->{connect}), 'Read after back: Connect');
 	ok(!($result->{disconnect}), 'Read after back: disconnect');
-
 }
 
 # Seek further back.
@@ -185,6 +199,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read after backskip: timestamp');
 	is($result->{text}, 'to=<00000000@acme.gov>, relay=127.0.0.1[127.0.0.1]:10025, delay=0.63, delays=0.54/0/0/0.09, dsn=2.0.0, status=sent (250 OK, sent 48A8F422_13987_12168_1 6B1B62259)');
 	is($result->{size}, undef, 'Read after backskip: size');
+	is($result->{previous_host}, undef, 'Read after backskip: Remote Host');
 	ok(!($result->{connect}), 'Read after backskip: Connect');
 	ok(!($result->{disconnect}), 'Read after backskip: disconnect');
 }
@@ -211,6 +226,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read after skip: timestamp');
 	is($result->{text}, 'from=<00000001@baz.acme.gov>, size=84778, nrcpt=7 (queue active)', 'Read after skip: text');
 	is($result->{size}, '84778', 'Read after skip: size');
+	is($result->{previous_host}, undef, 'Read after skip: Remote Host');
 	ok(!($result->{connect}), 'Read after skip: Connect');
 	ok(!($result->{disconnect}), 'Read after skip: disconnect');
 }
@@ -235,6 +251,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read after skip: timestamp');
 	is($result->{text}, 'to=<00000058@acme.gov>, relay=127.0.0.1[127.0.0.1]:10025, delay=0.59, delays=0.42/0/0/0.17, dsn=2.0.0, status=sent (250 OK, sent 48A8F422_13989_69085_1 012652BE7)');
 	is($result->{size}, undef, 'Read after skip: size');
+	is($result->{previous_host}, undef, 'Read after skip: Remote Host');
 	ok(!($result->{connect}), 'Read after skip: Connect');
 	ok(!($result->{disconnect}), 'Read after skip: disconnect');
 }
@@ -258,6 +275,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read previous: timestamp');
 	is($result->{text}, 'message-id=<D31A582E5B6A2B45902C41C643D99A5A01399D5C@K001MB101.network.ad.baz.gov>');
 	is($result->{size}, undef, 'Read previous: size');
+	is($result->{previous_host}, undef, 'Read previous: Remote Host');
 	ok(!($result->{connect}), 'Read previous: Connect');
 	ok(!($result->{disconnect}), 'Read previous: disconnect');
 }
@@ -283,6 +301,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read restart: timestamp');
 	is($result->{text}, 'disconnect from localhost.localdomain[127.0.0.1]');
 	is($result->{size}, undef, 'Read restart: size');
+	is($result->{previous_host}, 'localhost.localdomain[127.0.0.1]', 'Read restart: Remote Host');
 	ok(!($result->{connect}), 'Read restart: Connect');
 	ok(($result->{disconnect}), 'Read restart: disconnect');
 }
@@ -308,6 +327,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read after skip (reset year/buffer): timestamp');
 	is($result->{text}, 'client=unknown[10.0.80.60]');
 	is($result->{size}, undef, 'Read after skip (reset year/buffer): size');
+	is($result->{previous_host}, undef, 'Read after skip (reset year/buffer): Remote Host');
 	ok(!($result->{connect}), 'Read after skip (reset year/buffer): Connect');
 	ok(!($result->{disconnect}), 'Read after skip (reset year/buffer): disconnect');
 }
@@ -331,6 +351,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read after buffer window: timestamp');
 	is($result->{text}, 'connect from localhost.localdomain[127.0.0.1]');
 	is($result->{size}, undef, 'Read after buffer window: size');
+	is($result->{previous_host}, 'localhost.localdomain[127.0.0.1]', 'Read after buffer window: Remote Host');
 	ok(($result->{connect}), 'Read after buffer window: Connect');
 	ok(!($result->{disconnect}), 'Read after buffer window: disconnect');
 }
@@ -356,6 +377,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read after skip: timestamp');
 	is($result->{text}, 'to=<00000113@acme.gov>, relay=127.0.0.1[127.0.0.1]:10025, delay=0.68, delays=0.59/0/0/0.08, dsn=2.0.0, status=sent (250 OK, sent 48A8F462_13989_69099_1 76F6A2259)');
 	is($result->{size}, undef, 'Read after skip: size');
+	is($result->{previous_host}, undef, 'Read after skip: Remote Host');
 	ok(!($result->{connect}), 'Read after skip: Connect');
 	ok(!($result->{disconnect}), 'Read after skip: disconnect');
 }
@@ -399,6 +421,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read after skip (from beginning and forward): timestamp');
 	is($result->{text}, 'to=<00000006@acme.gov>, relay=10.0.0.1[10.0.0.1]:1025, delay=0.06, delays=0.01/0/0/0.05, dsn=2.0.0, status=sent (250 Message received and queued)');
 	is($result->{size}, undef, 'Read after skip (from beginning and forward): size');
+	is($result->{previous_host}, undef, 'Read after skip (from beginning and forward): Remote Host');
 	ok(!($result->{connect}), 'Read after skip (from beginning and forward): Connect');
 	ok(!($result->{disconnect}), 'Read after skip (from beginning and forward): disconnect');
 }
@@ -424,6 +447,7 @@ ok(!($result->{disconnect}), 'Read first disconnect');
 	is($result->{timestamp}, $timestamp, 'Read after skip (from beginning and back): timestamp');
 	is($result->{text}, 'connect from localhost.localdomain[127.0.0.1]');
 	is($result->{size}, undef, 'Read after skip (from beginning and back): size');
+	is($result->{previous_host}, 'localhost.localdomain[127.0.0.1]', 'Read after skipt (from beginning and back): Remote Host');
 	ok(($result->{connect}), 'Read after skip (from beginning and back): Connect');
 	ok(!($result->{disconnect}), 'Read after skip (from beginning and back): disconnect');
 }

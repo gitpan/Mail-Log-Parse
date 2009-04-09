@@ -35,7 +35,7 @@ memoize('timelocal');
 BEGIN {
     use Exporter ();
     use vars qw($VERSION);
-    $VERSION     = '1.0411';
+    $VERSION     = '1.0500';
 }
 
 # A constant, to convert month names to month numbers.
@@ -113,7 +113,7 @@ Hash keys are:
 	delay_before_queue, delay_connect_setup, delay_in_queue, 
 	delay_message_transmission, from, host, id, msgid, pid, program, 
 	relay, size, status, text, timestamp, to, delay, connect,
-	disconnect
+	disconnect, previous_host, previous_host_name, previous_host_ip
 
 All keys are garunteed to be present.  'program', 'pid', 'host', 'timestamp',
 'id' and 'text' are garunteed to have a value.  'connect' and 'disconnect' are
@@ -143,6 +143,7 @@ sub _parse_next_line {
 		# Start parsing.
 		@line_data = split ' ', $line, 7;
 
+		no warnings qw(uninitialized);
 		# Program name and pid.
 		($line_info{program}, $line_info{pid}) = $line_data[4] =~ m/([^[]+)\[(\d+)\]/;
 	}
@@ -199,7 +200,8 @@ sub _parse_next_line {
 		# Status
 		($line_info{status}) = $line_info{text} =~ m/\bstatus=(.+)$/;
 
-		@line_info{'from', 'size', 'msgid', 'connect', 'disconnect'} = undef;
+		@line_info{'from', 'size', 'msgid', 'connect', 'disconnect', 'previous_host'
+					, 'previous_host_name', 'previous_host_ip' } = undef;
 	}
 	else {
 		# From address
@@ -216,6 +218,16 @@ sub _parse_next_line {
 
 		# Disconnect (Boolean)
 		$line_info{disconnect} = $line_info{text} =~ m/\bdisconnect from/;
+
+		# Remote host info.  (Only if above.)
+		if ( $line_info{connect} || $line_info{disconnect} ) {
+			($line_info{previous_host}) = $line_info{text} =~ m/connect from (\S+)/;
+			($line_info{previous_host_name}, $line_info{previous_host_ip})
+				= $line_info{previous_host} =~ m/([^[]+)\[([[:xdigit:]:.]+)\]/;
+		}
+		else {
+			@line_info{'previous_host', 'previous_host_name', 'previous_host_ip'} = undef;
+		}
 
 		@line_info{'relay', 'status', 'delay_before_queue', 'delay_in_queue'
 					, 'delay_connect_setup', 'delay_message_transmission', 'delay'}
@@ -246,6 +258,12 @@ DStaal@usa.net
 L<Mail::Log::Parse>, for the main documentation on this module set.
 
 =head1 HISTORY
+
+April 9, 2009 (1.5.0) - Now reads the connecting host from the 'connect' and
+'disconnect' lines in the log.
+
+Feb 27, 2009 (1.4.12) - Quieted an occasional error, if the log line doesn't 
+have the standard Postgres format.
 
 Dec 23, 2008 (1.4.11) - Further speedups.  Now requires Mail::Log::Parse of at
 least version 1.3.0.

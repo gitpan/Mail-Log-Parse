@@ -13,7 +13,7 @@ if ( eval { require Test::Without::Module }
 		and eval { require IO::Uncompress::Gunzip }
 	) {
 	Test::Without::Module->import( qw( File::Temp ) );
-	plan( tests => 27 );
+	plan( tests => 28 );
 }
 else {
 	plan( skip_all => 'Need Test::Without::Module installed.');
@@ -25,7 +25,7 @@ else {
 # The keys list.
 my @keys = sort qw(to from relay pid msgid program host status id timestamp text size delay_before_queue 
 					delay_in_queue delay_connect_setup delay_message_transmission delay connect
-					disconnect);
+					disconnect previous_host previous_host_name previous_host_ip);
 
 my $object = Mail::Log::Parse::Postfix->new();
 
@@ -67,6 +67,7 @@ is($result->{delay_connect_setup}, '0', 'Read first delay connect setup.');
 is($result->{delay_message_transmission}, '0.09', 'Read first delay message transmission.');
 is($result->{delay}, '0.63', 'Read first total delay.');
 is($result->{size}, undef, 'Read first size.');
+is($result->{previous_host}, undef, 'Read first: Remote Host');
 ok(!($result->{connect}), 'Read first Connect');
 ok(!($result->{disconnect}), 'Read first disconnect');
 }
@@ -80,7 +81,7 @@ throws_ok { $object->set_logfile('t/data/log.gz'); } 'Mail::Log::Exceptions';
 SKIP: {
 	eval { require File::Temp; File::Temp->VERSION(0.17); };
 
-	skip 'File::Temp version 0.17 required', 2 if $@;
+	skip "File::Temp version 0.17 required: $@", 2 if $@;
 
 	# Without IO::Uncompress::AnyUncompress
 	eval q{ Test::Without::Module->import( qw( IO::Uncompress::AnyUncompress ) ); };
