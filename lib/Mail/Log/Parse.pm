@@ -39,7 +39,7 @@ be easy to write and use.
 
 =head1 USAGE
 
-This is an object-oriented module.  Avalible object methods are below.
+This is an object-oriented module.  Available object methods are below.
 
 In a string context, it will return a string specifying the path to the file
 and the current line number.  In a boolean context, it will return whether it
@@ -61,7 +61,7 @@ use base qw(Exporter);
 BEGIN {
     use Exporter ();
     use vars qw($VERSION);
-    $VERSION     = '1.0301';
+    $VERSION     = '1.0400';
 }
 
 #
@@ -128,7 +128,7 @@ use overload (
 =head2 new (constructor)
 
 The base constructor for the Mail::Log::Parse classes.  It takes an (optional)
-hash containing path to the logfile as an arugment, and returns the new object.
+hash containing path to the logfile as an argument, and returns the new object.
 
 Example:
 
@@ -185,7 +185,7 @@ there is no technical reason not to support more.  (It just keeps a couple
 of lines of code shorter.)
 
 Note that to support seeking in the file the log will be uncompressed to disk
-before it is read: If there is insufficent space to do so, we may have trouble.
+before it is read: If there is insufficient space to do so, we may have trouble.
 It also means this method may take a while to return for large compressed logs.
 
 Example:
@@ -257,7 +257,7 @@ There are a couple of required keys that any parser must implement:
 timestamp, program, id, text.
 
 Where C<timestamp> must the the unix timestamp, C<program> must be the name of
-the program that reported the logline (Sub-programs are recommened to be listed,
+the program that reported the logline (Sub-programs are recommended to be listed,
 if possible), C<id> is the tracking ID for that message, as reported by the
 program, and C<text> is the text following any 'standard' headers.  (Usually,
 minus those already required keys.)
@@ -332,6 +332,7 @@ sub next {
 		READ_LOOP: for my $i (0...$parse_buffer_size{$$self}) {
 			$parse_buffer{$$self}->[$i] = $self->_parse_next_line();
 			last READ_LOOP unless defined $parse_buffer{$$self}->[$i];
+			$self->_set_position_as_next_line;
 		}
 		
 #use Data::Dumper;
@@ -374,7 +375,7 @@ sub previous {
 
 =head2 go_forward
 
-Goes forward a specifed number of (logical) lines, or 1 if unspecified.  It will
+Goes forward a specified number of (logical) lines, or 1 if unspecified.  It will
 throw an error if it fails to seek as requested.
 
 Returns true on success.
@@ -419,7 +420,7 @@ sub go_forward {
 
 =head2 go_backward
 
-Goes backward a specifed number of (logcial) lines, or 1 if unspecified.  It will 
+Goes backward a specified number of (logical) lines, or 1 if unspecified.  It will 
 throw an error if it fails to seek as requested.
 
 If the seek would go beyond the beginning of the file, it will go to the
@@ -543,6 +544,7 @@ sub _parse_next_line {
 #
 # These are semi-private methods: They are for the use of subclasses only.
 #
+=for readme stop
 
 =head1 SUBCLASSING
 
@@ -551,7 +553,7 @@ such, attempts have been made to make subclassing as painless as possible.  In
 general, you should only ever have to implement one method: C<_parse_next_line>.
 
 C<_parse_next_line> will be called whenever another line of the log needs to be
-read.  Its responsiblity is to indentify the next line, report where that is
+read.  Its responsibility is to identify the next line, report where that is
 in the actual file, and to parse that line.
 
 Specifically, it should I<not> assume that every line in the input file is a
@@ -594,12 +596,9 @@ a subclass:
 		# Read the line, using the Mail::Log::Parse utilty method.
 		$line = $self->_get_data_line() or return undef;
 
-		# Program name.
+		# Program name.  (We trust the logs. ;) )
 		$line_info{program} = $line ~= m/$regrex/;
 	}
-
-	# Ok, let's update where we are, using the Mail::Log::Parse utility method.
-	$self->_set_current_position_as_next_line();
 
 	# Continue parsing
 	...
@@ -607,7 +606,7 @@ a subclass:
 	return \%line_info;
  }
 
-=head1 UTLITY METHODS
+=head1 UTILITY METHODS
 
 The following methods are not for general consumption: They are specifically
 provided for use in implementing subclasses.  Using them incorrectly, or
@@ -617,33 +616,36 @@ B<ONLY USE IF YOU ARE IMPLEMENTING A SUBCLASS.>
 
 =head2 _set_current_position_as_next_line
 
-Sets the current position in the file as the next 'line' position in sequence.
-
-Call once you have determined that the current line of data (as returned from
-C<_get_data_line>) is parsable in the currently understood format.
+Depreciated: No longer needed.  An empty stub exists for backwards-compatibility.
 
 =cut
 
-sub _set_current_position_as_next_line { 
-	my ($self) = @_;
+sub _set_current_position_as_next_line () {  }
 
-	$current_line{$$self} += 1;
-	${$log_info{$$self}{line_positions}}[$current_line{$$self}] = $log_info{$$self}{filehandle}->getpos()
+
+# Sets the current positition as the next 'line' of logical data.
+# Purely internal at this point.
+# Optimized for speed over clarity, since we potentially use this a lot.
+# (At least once per log line read.)
+sub _set_position_as_next_line {
+	$current_line{${$_[0]}} += 1;
+	${$log_info{${$_[0]}}}{line_positions}[$current_line{${$_[0]}}] = $log_info{${$_[0]}}{'filehandle'}->getpos()
 		or Mail::Log::Exceptions::LogFile->throw("Unable to get current file position: $!\n");
-	return;
 }
 
 =head2 _get_data_line
 
 Returns the next line of data, as a string, from the logfile.  This is raw data
-from the logfile, seperated by the current input seperator.
+from the logfile, separated by the current input separator.
 
 =cut
 
+# Optimized for speed over clarity, since we potentially use this a lot.
+# (At least once per log line read.)
+
 sub _get_data_line {
-	my ($self) = @_;
-	if ( defined($log_info{$$self}{filehandle}) ){
-		return $log_info{$$self}{filehandle}->getline()
+	if ( defined($log_info{${$_[0]}}{'filehandle'}) ){
+		return $log_info{${$_[0]}}{'filehandle'}->getline()
 	}
 	else {
 		Mail::Log::Exceptions::LogFile->throw("Trying to read without a valid logfile: $!\n");
@@ -672,6 +674,7 @@ sub _clear_buffer {
 #
 # Fully private methods.
 #
+=for readme continue
 
 =head1 BUGS
 
@@ -708,7 +711,13 @@ L<Parse::Syslog::Mail>, which does some of what this module does.  (This module
 is a result of running into what that module I<doesn't> support.  Namely
 seeking through a file, both forwards and back.)
 
+=for readme stop
+
 =head1 HISTORY
+
+April 17, 2009 (1.4.0) - Simplified subclassing: No longer need to call
+C<_set_current_position_as_next_line> in subclass.  (A stub exists for backwards
+compatibility.)
 
 April 9, 2009 (1.3.1) - Documentation fixes, better handling of trying to work
 without a valid logfile.
@@ -731,7 +740,9 @@ Oct 14, 2008 - Found that I need File::Temp of at least version 0.17.
 Oct 13, 2008 - Fixed tests so they do a better job of checking if they 
 need to skip.
 
-Oct 6, 2008 - Inital version.
+Oct 6, 2008 - Initial version.
+
+=for readme continue
 
 =head1 COPYRIGHT and LICENSE
 

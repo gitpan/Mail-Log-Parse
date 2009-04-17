@@ -25,7 +25,7 @@ use strict;
 use warnings;
 use Scalar::Util qw(refaddr);
 use Time::Local;
-use Mail::Log::Parse 1.0300;
+use Mail::Log::Parse 1.0400;
 use Mail::Log::Exceptions;
 use base qw(Mail::Log::Parse Exporter);
 
@@ -35,7 +35,7 @@ memoize('timelocal');
 BEGIN {
     use Exporter ();
     use vars qw($VERSION);
-    $VERSION     = '1.0500';
+    $VERSION     = '1.0501';
 }
 
 # A constant, to convert month names to month numbers.
@@ -115,8 +115,8 @@ Hash keys are:
 	relay, size, status, text, timestamp, to, delay, connect,
 	disconnect, previous_host, previous_host_name, previous_host_ip
 
-All keys are garunteed to be present.  'program', 'pid', 'host', 'timestamp',
-'id' and 'text' are garunteed to have a value.  'connect' and 'disconnect' are
+All keys are guaranteed to be present.  'program', 'pid', 'host', 'timestamp',
+'id' and 'text' are guaranteed to have a value.  'connect' and 'disconnect' are
 boolean: true if the line is the relevant type of line, false otherwise.
 
 The 'text' key will have all of the log text B<after> the standard Postfix
@@ -125,7 +125,9 @@ header.  (All of which is in the other keys that are required to have a value.)
 =cut
 
 sub _parse_next_line {
-	my ($self) = @_;
+#	my ($self) = @_;	# Saves a couple of microseconds per call not to use $self.
+						# Given the _extreme_ amounts this method is called,
+						# I thought it worth the trade-off.  $_[0] == $self
 
 	# The hash we will return.
 	my %line_info = ( program => '' );
@@ -138,7 +140,7 @@ sub _parse_next_line {
 	# something we can parse.  Keep going until we can.
 	while ( $line_info{program} !~ m/postfix/ ) {
 		# Read the line.
-		$line = $self->_get_data_line() or return undef;
+		$line = $_[0]->_get_data_line() or return undef;
 
 		# Start parsing.
 		@line_data = split ' ', $line, 7;
@@ -148,17 +150,14 @@ sub _parse_next_line {
 		($line_info{program}, $line_info{pid}) = $line_data[4] =~ m/([^[]+)\[(\d+)\]/;
 	}
 
-	# Ok, let's update our info.
-	$self->_set_current_position_as_next_line();
-
 	# First few fields are the date.  Convert back to Unix format...
 	{	# We don't need all these temp variables hanging around.
 		my ($log_hour, $log_minutes, $log_seconds) = split /:/, $line_data[2];
-		if (!defined($log_info{$$self}->{year}) ) {
+		if (!defined($log_info{${$_[0]}}->{year}) ) {
 			$line_info{timestamp} = timelocal($log_seconds, $log_minutes, $log_hour, $line_data[1], $MONTH_NUMBER{$line_data[0]}, $CURR_DATE[5]);
 		}
 		else {
-			$line_info{timestamp} = timelocal($log_seconds, $log_minutes, $log_hour, $line_data[1], $MONTH_NUMBER{$line_data[0]}, $log_info{$$self}->{year});
+			$line_info{timestamp} = timelocal($log_seconds, $log_minutes, $log_hour, $line_data[1], $MONTH_NUMBER{$line_data[0]}, $log_info{${$_[0]}}->{year});
 		}
 	}
 
@@ -166,7 +165,7 @@ sub _parse_next_line {
 	$line_info{host} = $line_data[3];
 
 	# Connection ID
-	if ( $line_data[5] =~ /([^:]+):/ ) {
+	if ( $line_data[5] =~ m/([^:]+):/ ) {
 		$line_info{id} = $1;
 	}
 	else {
@@ -198,7 +197,7 @@ sub _parse_next_line {
 		($line_info{delay}) = $line_info{text} =~ m/\bdelay=([\d.]+),/;
 
 		# Status
-		($line_info{status}) = $line_info{text} =~ m/\bstatus=(.+)$/;
+		($line_info{status}) = $line_info{text} =~ m/\bstatus=(.+)\Z/;
 
 		@line_info{'from', 'size', 'msgid', 'connect', 'disconnect', 'previous_host'
 					, 'previous_host_name', 'previous_host_ip' } = undef;
@@ -223,7 +222,7 @@ sub _parse_next_line {
 		if ( $line_info{connect} || $line_info{disconnect} ) {
 			($line_info{previous_host}) = $line_info{text} =~ m/connect from (\S+)/;
 			($line_info{previous_host_name}, $line_info{previous_host_ip})
-				= $line_info{previous_host} =~ m/([^[]+)\[([[:xdigit:]:.]+)\]/;
+				= $line_info{previous_host} =~ m/([^[]+)\[([^\]]+)\]/;
 		}
 		else {
 			@line_info{'previous_host', 'previous_host_name', 'previous_host_ip'} = undef;
@@ -259,21 +258,24 @@ L<Mail::Log::Parse>, for the main documentation on this module set.
 
 =head1 HISTORY
 
+April 17, 2009 (1.5.1) - No longer uses C<_set_current_position_as_next_line>,
+instead lets Mail::Log::Parse manage automatically.  (Requires 1.4.0.)
+
 April 9, 2009 (1.5.0) - Now reads the connecting host from the 'connect' and
 'disconnect' lines in the log.
 
 Feb 27, 2009 (1.4.12) - Quieted an occasional error, if the log line doesn't 
-have the standard Postgres format.
+have the standard Postfix format.
 
 Dec 23, 2008 (1.4.11) - Further speedups.  Now requires Mail::Log::Parse of at
 least version 1.3.0.
 
 Dec 09, 2008 (1.4.10) - Profiled code, did some speedups.  Added dependency on
 Memoize: For large logs this is a massive speedup.  For extremely sparse logs
-it may not be, but sparce logs are likely to be small.
+it may not be, but sparse logs are likely to be small.
 
 Nov 28, 2008 - Switched 'total_delay' to slightly more universal 'delay'.
-Sped up some regrexes.
+Sped up some regexes.
 
 Nov 11, 2008 - Switched to using the bufferable C<_parse_next_line> instead of
 the unbuffered C<next>.
@@ -283,7 +285,7 @@ dealing with this year's logs.  (From the todo list.)
 
 Oct 24, 2008 - Added 'connect' and 'disconnect' members to the return hash.
 
-Oct 6, 2008 - Inital version.
+Oct 6, 2008 - Initial version.
 
 =head1 COPYRIGHT and LICENSE
 

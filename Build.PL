@@ -1,7 +1,41 @@
 use Module::Build;
 # See perldoc Module::Build for details of how this works
 
-Module::Build->new
+my $class = Module::Build->subclass (
+code => q|
+	use Module::Build::ModuleInfo;
+	use Pod::Text;
+	sub create_readme {
+		my ($self) = @_;
+		
+		# Say what we are doing.
+		print "Deleting ChangeLog\n";
+		unlink 'ChangeLog';
+		print "Creating ChangeLog\n";
+		
+		# Get the POD-formatted text.
+		open my $outfile, '>', 'ChangeLog.pod';
+		push my @modules, Module::Build::ModuleInfo->new_from_module(
+			'Mail::Log::Parse', collect_pod =>1
+			, inc => [$self->base_dir()."/lib"]);
+		push @modules, Module::Build::ModuleInfo->new_from_module(
+			'Mail::Log::Parse::Postfix', collect_pod =>1
+			, inc => [$self->base_dir()."/lib"]);
+		foreach my $pm_file ( @modules ) {
+			print $outfile "=head1 Changes in: ". $pm_file->name() ."\n\n";
+			print $outfile $pm_file->pod('HISTORY');
+		}
+		close $outfile;
+		
+		# Reformat to standard text, and remove temp file.
+		my $text = Pod::Text->new();
+		$text->parse_from_file('ChangeLog.pod', 'ChangeLog');
+		unlink 'ChangeLog.pod';
+	}
+	|
+);
+
+$class->new
     ( module_name     => 'Mail::Log::Parse',
       license         => 'perl',
       dist_author     => 'Daniel Staal - <DStaal@usa.net>',
